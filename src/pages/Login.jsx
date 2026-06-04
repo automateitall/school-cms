@@ -35,7 +35,7 @@ export default function Login() {
 
         <div className="text-center mb-8">
           <img
-  src="/src/assets/logo-cm.svg"
+  src="/logo-cm.svg"
   alt="CM Public School"
   className="h-16 mx-auto mb-3"npm 
 />

@@ -27,7 +27,7 @@ export default function Sidebar() {
 
       <div>
         <div className="mb-8 px-2">
-          <img src="/src/assets/logo-cm.svg" alt="CM School" className="h-40 mb-3" />
+          <img src="/logo-cm.svg" alt="CM School" className="h-40 mb-3" />
           <p className="text-white text-xs opacity-60">Staff Portal</p>
         </div>
 
