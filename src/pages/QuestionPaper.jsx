@@ -3,6 +3,7 @@ import { PDFDownloadLink } from '@react-pdf/renderer'
 import Layout from '../components/layout/Layout'
 import api from '../lib/api'
 import QuestionPaperTemplate from '../components/pdf/QuestionPaperTemplate'
+import { fetchClasses } from '../lib/classes'
 
 const defaultSection = () => ({ title: 'Short Answer Questions', marksPerQ: 2, questions: [''] })
 
@@ -28,7 +29,7 @@ export default function QuestionPaper() {
 
   const examTypes = ['Unit Test 1', 'Unit Test 2', 'Mid Term', 'Pre Board', 'Final Exam']
   const subjects = ['English', 'Hindi', 'Mathematics', 'Science', 'Social Science', 'Computer', 'Sanskrit', 'Physics', 'Chemistry', 'Biology']
-  const classes = ['1','2','3','4','5','6','7','8','9','10','11','12']
+  const [classes, setClasses] = useState([])
 
   const fetchPapers = async () => {
     try {
@@ -38,6 +39,9 @@ export default function QuestionPaper() {
   }
 
   useEffect(() => { fetchPapers() }, [])
+  useEffect(() => {
+  fetchClasses().then(setClasses)
+  }, [])
 
   const handleSave = async () => {
     if (!paperData.title) return alert('Please add a title for this paper')
@@ -315,7 +319,7 @@ export default function QuestionPaper() {
                   onChange={e => { setPaperData({ ...paperData, className: e.target.value }); setReady(false) }}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none">
                   <option value="">Select</option>
-                  {classes.map(c => <option key={c}>Class {c}</option>)}
+                  {classes.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
               <div>

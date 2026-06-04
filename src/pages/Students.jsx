@@ -1,9 +1,12 @@
+import { fetchClasses } from '../lib/classes'
 import { useEffect, useState } from 'react'
 import Layout from '../components/layout/Layout'
 import api from '../lib/api'
 
+
 export default function Students() {
   const [students, setStudents] = useState([])
+  const [classes, setClasses] = useState([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({
@@ -23,6 +26,9 @@ export default function Students() {
   }
 
   useEffect(() => { fetchStudents() }, [])
+  useEffect(() => {
+  fetchClasses().then(setClasses)
+}, [])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -70,7 +76,6 @@ export default function Students() {
             {[
               { label: 'Full Name', key: 'name', type: 'text' },
               { label: 'Roll No', key: 'rollNo', type: 'text' },
-              { label: 'Class', key: 'class', type: 'text' },
               { label: 'Section', key: 'section', type: 'text' },
               { label: 'Parent Name', key: 'parentName', type: 'text' },
               { label: 'Parent Phone', key: 'parentPhone', type: 'text' },
@@ -87,6 +92,20 @@ export default function Students() {
                 />
               </div>
             ))}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Class</label>
+              <select
+                value={form['class']}
+                onChange={(e) => setForm({ ...form, class: e.target.value })}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none"
+                required
+              >
+                <option value="">Select class</option>
+                {classes.map(c => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">School</label>
               <select

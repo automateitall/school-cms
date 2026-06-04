@@ -8,6 +8,7 @@ import Attendance from './pages/Attendance'
 import Marks from './pages/Marks'
 import ReportCard from './pages/ReportCard'
 import QuestionPaper from './pages/QuestionPaper'
+import Settings from './pages/Settings'
 
 function App() {
   const token = localStorage.getItem('token')
@@ -25,6 +26,7 @@ function App() {
         <Route path="/report-card" element={token ? <ReportCard /> : <Navigate to="/login" />} />
         <Route path="/question-paper" element={token ? <QuestionPaper /> : <Navigate to="/login" />} />
         <Route path="*" element={<Navigate to={token ? "/dashboard" : "/login"} />} />
+        <Route path="/settings" element={token ? <Settings /> : <Navigate to="/login" />} />
       </Routes>
     </BrowserRouter>
   )

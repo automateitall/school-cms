@@ -3,17 +3,20 @@ import { PDFDownloadLink } from '@react-pdf/renderer'
 import Layout from '../components/layout/Layout'
 import api from '../lib/api'
 import ReportCardTemplate from '../components/pdf/ReportCardTemplate'
+import { fetchClasses } from '../lib/classes'
 
 export default function ReportCard() {
   const [students, setStudents] = useState([])
+  const [classes, setClasses] = useState([])
   const [selectedClass, setSelectedClass] = useState('')
   const [selectedSchool, setSelectedSchool] = useState('CMP')
   const [examType, setExamType] = useState('Unit Test 1')
   const [reports, setReports] = useState({})
   const [loading, setLoading] = useState(false)
   const [generated, setGenerated] = useState(false)
-
-  const classes = ['1','2','3','4','5','6','7','8','9','10','11','12']
+  useEffect(() => {
+  fetchClasses().then(setClasses)
+  }, [])
   const examTypes = ['Unit Test 1','Unit Test 2','Mid Term','Pre Board','Final Exam']
 
   const generateReports = async () => {
@@ -60,7 +63,7 @@ export default function ReportCard() {
             <select value={selectedClass} onChange={e => { setSelectedClass(e.target.value); setGenerated(false) }}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none">
               <option value="">Select class</option>
-              {classes.map(c => <option key={c} value={c}>Class {c}</option>)}
+              {classes.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
           <div>

@@ -2,17 +2,19 @@
 import { useEffect, useState } from 'react'
 import Layout from '../components/layout/Layout'
 import api from '../lib/api'
+import { fetchClasses } from '../lib/classes'
 
 export default function Attendance() {
   const [students, setStudents] = useState([])
   const [attendance, setAttendance] = useState({})
+  const [classes, setClasses] = useState([])
   const [selectedClass, setSelectedClass] = useState('')
   const [selectedSchool, setSelectedSchool] = useState('CMP')
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
   const [saved, setSaved] = useState(false)
   const [loading, setLoading] = useState(false)
 
-  const classes = ['Nursery', 'LKG', 'UKG', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12']
+
 
   useEffect(() => {
     if (!selectedClass) return
@@ -30,6 +32,10 @@ export default function Attendance() {
     }
     fetchStudents()
   }, [selectedClass, selectedSchool])
+
+  useEffect(() => {
+  fetchClasses().then(setClasses)
+  }, [])
 
   const handleSubmit = async () => {
     setLoading(true)
@@ -82,7 +88,7 @@ export default function Attendance() {
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none"
             >
               <option value="">Select class</option>
-              {classes.map(c => <option key={c} value={c}>Class {c}</option>)}
+              {classes.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
           <div>

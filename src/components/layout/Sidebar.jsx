@@ -9,6 +9,7 @@ const links = [
   { to: '/question-paper', label: 'Question Papers', icon: '📝' },
   { to: '/notices', label: 'Notices', icon: '📋' },
   { to: '/admissions', label: 'Admissions', icon: '🎓' },
+  { to: '/settings', label: 'Settings', icon: '⚙️' },
 ]
 
 export default function Sidebar() {

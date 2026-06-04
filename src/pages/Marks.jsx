@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
 import Layout from '../components/layout/Layout'
 import api from '../lib/api'
+import { fetchClasses } from '../lib/classes'
 
 export default function Marks() {
   const [students, setStudents] = useState([])
+  const [classes, setClasses] = useState([])
   const [selectedClass, setSelectedClass] = useState('')
   const [selectedSchool, setSelectedSchool] = useState('CMP')
   const [examType, setExamType] = useState('Unit Test 1')
@@ -13,7 +15,7 @@ export default function Marks() {
   const [saved, setSaved] = useState(false)
   const [loading, setLoading] = useState(false)
 
-  const classes = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12']
+
   const examTypes = ['Unit Test 1', 'Unit Test 2', 'Mid Term', 'Pre Board', 'Final Exam']
   const subjects = ['English', 'Hindi', 'Mathematics', 'Science', 'Social Science', 'Computer', 'Sanskrit', 'Physics', 'Chemistry', 'Biology']
 
@@ -33,6 +35,10 @@ export default function Marks() {
     }
     fetchStudents()
   }, [selectedClass, selectedSchool])
+  
+  useEffect(() => {
+  fetchClasses().then(setClasses)
+  }, [])
 
   const handleSubmit = async () => {
     if (!subject) return alert('Please select a subject')
@@ -85,7 +91,7 @@ export default function Marks() {
             <select value={selectedClass} onChange={e => setSelectedClass(e.target.value)}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none">
               <option value="">Select class</option>
-              {classes.map(c => <option key={c} value={c}>Class {c}</option>)}
+              {classes.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
           <div>
