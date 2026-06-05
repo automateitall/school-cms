@@ -1,19 +1,14 @@
 import axios from 'axios'
 
-const isProduction = window.location.hostname !== 'localhost'
-const BASE_URL = isProduction 
-  ? 'https://cmps-backend.vercel.app/api'
-  : 'http://localhost:5000/api'
+const BASE_URL = window.location.hostname === 'localhost' 
+  ? 'http://localhost:5000/api'
+  : 'https://cmps-backend.vercel.app/api'
 
-const api = axios.create({
-  baseURL: BASE_URL
-})
+const api = axios.create({ baseURL: BASE_URL })
 
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token')
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`
-  }
+  if (token) config.headers.Authorization = `Bearer ${token}`
   return config
 })
 
