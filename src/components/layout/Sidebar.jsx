@@ -10,6 +10,8 @@ const links = [
   { to: '/notices', label: 'Notices', icon: '📋' },
   { to: '/admissions', label: 'Admissions', icon: '🎓' },
   { to: '/settings', label: 'Settings', icon: '⚙️' },
+  { to: '/subjects', label: 'Subjects', icon: '📚' },
+  { to: '/exam-types', label: 'Exam Types', icon: '📋' },
 ]
 
 export default function Sidebar() {

@@ -9,6 +9,8 @@ import Marks from './pages/Marks'
 import ReportCard from './pages/ReportCard'
 import QuestionPaper from './pages/QuestionPaper'
 import Settings from './pages/Settings'
+import Subjects from './pages/Subjects'
+import ExamTypes from './pages/ExamTypes'
 
 function App() {
   const token = localStorage.getItem('token')
@@ -27,6 +29,8 @@ function App() {
         <Route path="/question-paper" element={token ? <QuestionPaper /> : <Navigate to="/login" />} />
         <Route path="*" element={<Navigate to={token ? "/dashboard" : "/login"} />} />
         <Route path="/settings" element={token ? <Settings /> : <Navigate to="/login" />} />
+        <Route path="/subjects" element={token ? <Subjects /> : <Navigate to="/login" />} />
+        <Route path="/exam-types" element={token ? <ExamTypes /> : <Navigate to="/login" />} />
       </Routes>
     </BrowserRouter>
   )

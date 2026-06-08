@@ -8,16 +8,28 @@ export default function Marks() {
   const [classes, setClasses] = useState([])
   const [selectedClass, setSelectedClass] = useState('')
   const [selectedSchool, setSelectedSchool] = useState('CMP')
-  const [examType, setExamType] = useState('Unit Test 1')
+  const [examType, setExamType] = useState('')
   const [subject, setSubject] = useState('')
   const [maxMarks, setMaxMarks] = useState(100)
   const [marks, setMarks] = useState({})
   const [saved, setSaved] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [examTypes, setExamTypes] = useState([])
+  const [subjects, setSubjects] = useState([])
 
+  useEffect(() => {
+    fetchClasses().then(setClasses)
+  }, [])
 
-  const examTypes = ['Unit Test 1', 'Unit Test 2', 'Mid Term', 'Pre Board', 'Final Exam']
-  const subjects = ['English', 'Hindi', 'Mathematics', 'Science', 'Social Science', 'Computer', 'Sanskrit', 'Physics', 'Chemistry', 'Biology']
+  useEffect(() => {
+    api.get('/examtypes').then(r => setExamTypes(r.data)).catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    if (!selectedClass) return
+    api.get(`/subjects?class=${encodeURIComponent(selectedClass)}`).then(r => setSubjects(r.data)).catch(() => {})
+    setSubject('')
+  }, [selectedClass])
 
   useEffect(() => {
     if (!selectedClass) return
@@ -35,13 +47,10 @@ export default function Marks() {
     }
     fetchStudents()
   }, [selectedClass, selectedSchool])
-  
-  useEffect(() => {
-  fetchClasses().then(setClasses)
-  }, [])
 
   const handleSubmit = async () => {
     if (!subject) return alert('Please select a subject')
+    if (!examType) return alert('Please select an exam type')
     setLoading(true)
     try {
       await Promise.all(
@@ -96,9 +105,14 @@ export default function Marks() {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Exam Type</label>
-            <select value={examType} onChange={e => setExamType(e.target.value)}
+            <select value={examType} onChange={e => {
+              setExamType(e.target.value)
+              const found = examTypes.find(et => et.name === e.target.value)
+              if (found) setMaxMarks(found.maxMarks)
+            }}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none">
-              {examTypes.map(e => <option key={e}>{e}</option>)}
+              <option value="">Select exam type</option>
+              {examTypes.map(e => <option key={e.id} value={e.name}>{e.name}</option>)}
             </select>
           </div>
         </div>
@@ -108,7 +122,7 @@ export default function Marks() {
             <select value={subject} onChange={e => setSubject(e.target.value)}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none">
               <option value="">Select subject</option>
-              {subjects.map(s => <option key={s}>{s}</option>)}
+              {subjects.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
             </select>
           </div>
           <div>
@@ -177,7 +191,7 @@ export default function Marks() {
               style={{ background: '#083e78' }}
               className="w-full text-white py-3 rounded-xl text-sm font-medium hover:opacity-90 transition disabled:opacity-50"
             >
-              {loading ? 'Saving...' : `Save Marks — ${examType} · ${subject || 'Select subject first'}`}
+              {loading ? 'Saving...' : `Save Marks — ${examType || 'Select exam'} · ${subject || 'Select subject'}`}
             </button>
           )}
         </>
@@ -196,4 +210,4 @@ export default function Marks() {
       )}
     </Layout>
   )
-} 
+}
