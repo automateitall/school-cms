@@ -12,6 +12,7 @@ const links = [
   { to: '/settings', label: 'Settings', icon: '⚙️' },
   { to: '/subjects', label: 'Subjects', icon: '📚' },
   { to: '/exam-types', label: 'Exam Types', icon: '📋' },
+  { to: '/gallery', label: 'Gallery', icon: '🖼️' },
 ]
 
 export default function Sidebar() {
@@ -25,8 +26,8 @@ export default function Sidebar() {
   }
 
   return (
-    <div style={{ background: '#64748b', width: '220px', minHeight: '100vh' }}
-      className="flex flex-col justify-between py-6 px-4 fixed top-0 left-0">
+    <div style={{ background: '#64748b', width: '220px', height: '100vh', overflowY: 'auto' }}
+      className="flex flex-col justify-between py-4 px-4 fixed top-0 left-0">
 
       <div>
         <div className="mb-8 px-2">
