@@ -11,8 +11,8 @@ export default function Gallery() {
   const [title, setTitle] = useState('')
   const [category, setCategory] = useState('General')
   const [school, setSchool] = useState('CMP')
-  const [file, setFile] = useState(null)
-  const [preview, setPreview] = useState(null)
+  const [file, setFile] = useState([])
+  const [preview, setPreview] = useState([])
   const [filterCategory, setFilterCategory] = useState('All')
 
   useEffect(() => { fetchImages() }, [])
@@ -27,18 +27,18 @@ export default function Gallery() {
   }
 
   const handleFileChange = (e) => {
-    const f = e.target.files[0]
-    if (!f) return
-    setFile(f)
-    setPreview(URL.createObjectURL(f))
+    const files = Array.from(e.target.files)
+    if (!files.length) return
+    setFile(files)
+    setPreview(files.map(f => URL.createObjectURL(f)))
   }
 
   const handleUpload = async () => {
-    if (!file || !title.trim()) return alert('Please select a file and enter a title')
+    if (!file.length || !title.trim()) return alert('Please select files and enter a title')
     setUploading(true)
     try {
       const formData = new FormData()
-      formData.append('image', file)
+      file.forEach(f => formData.append('images', f))
       formData.append('title', title)
       formData.append('category', category)
       formData.append('school', school)
@@ -47,8 +47,8 @@ export default function Gallery() {
       })
       setTitle('')
       setCategory('General')
-      setFile(null)
-      setPreview(null)
+      setFile([])
+      setPreview([])
       fetchImages()
     } catch (err) {
       alert('Upload failed. Please try again.')
@@ -105,14 +105,17 @@ export default function Gallery() {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Photo *</label>
-            <input type="file" accept="image/*" onChange={handleFileChange}
+            <input type="file" accept="image/*" multiple onChange={handleFileChange}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none" />
           </div>
         </div>
 
-        {preview && (
-          <div style={{ marginBottom: '16px' }}>
-            <img src={preview} alt="Preview" style={{ width: '120px', height: '120px', objectFit: 'cover', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
+        {preview.length > 0 && (
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '16px' }}>
+            {preview.map((p, i) => (
+              <img key={i} src={p} alt="Preview" style={{ width: '80px', height: '80px', objectFit: 'cover', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
+            ))}
+            <p style={{ fontSize: '12px', color: '#64748b', alignSelf: 'center' }}>{preview.length} photo{preview.length > 1 ? 's' : ''} selected</p>
           </div>
         )}
 
