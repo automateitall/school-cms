@@ -28,6 +28,12 @@ export default function PrintQuestionPaper() {
       .finally(() => setLoading(false))
   }, [id])
 
+  useEffect(() => {
+    if (paper) {
+      document.title = `${paper.class} - ${paper.subject} - ${paper.examType} - Question Paper`
+    }
+  }, [paper])
+
   if (loading) {
     return <div style={{ padding: '2rem', textAlign: 'center', color: '#94a3b8', fontFamily: 'Arial, sans-serif' }}>Loading question paper...</div>
   }

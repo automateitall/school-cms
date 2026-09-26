@@ -99,6 +99,12 @@ export default function PrintReportCard() {
     return () => { cancelled = true }
   }, [studentId, examTypeParam, session])
 
+  useEffect(() => {
+    if (student && examTypeParam) {
+      document.title = `${student.name} - ${student.class} - ${examTypeParam} - Report Card`
+    }
+  }, [student, examTypeParam])
+
   if (loading) {
     return <div style={{ padding: '2rem', textAlign: 'center', color: '#94a3b8', fontFamily: 'Arial, sans-serif' }}>Loading report card...</div>
   }
