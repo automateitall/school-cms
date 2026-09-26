@@ -1,19 +1,39 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 
-const links = [
-  { to: '/dashboard', label: 'Dashboard', icon: '⊞' },
-  { to: '/students', label: 'Students', icon: '👥' },
-  { to: '/attendance', label: 'Attendance', icon: '✅' },
-  { to: '/marks', label: 'Marks & Results', icon: '📊' },
-  { to: '/report-card', label: 'Report Cards', icon: '📄' },
-  { to: '/question-paper', label: 'Question Papers', icon: '📝' },
-  { to: '/notices', label: 'Notices', icon: '📋' },
-  { to: '/admissions', label: 'Admissions', icon: '🎓' },
-  { to: '/settings', label: 'Settings', icon: '⚙️' },
-  { to: '/subjects', label: 'Subjects', icon: '📚' },
-  { to: '/exam-types', label: 'Exam Types', icon: '📋' },
-  { to: '/gallery', label: 'Gallery', icon: '🖼️' },
+const categories = [
+  {
+    title: 'Academic',
+    links: [
+      { to: '/students', label: 'Students', icon: '👥' },
+      { to: '/attendance', label: 'Attendance', icon: '✅' },
+      { to: '/marks', label: 'Marks & Results', icon: '📊' },
+      { to: '/report-card', label: 'Report Cards', icon: '📄' },
+      { to: '/subjects', label: 'Subjects', icon: '📚' },
+      { to: '/exam-types', label: 'Exam Types', icon: '📋' },
+    ],
+  },
+  {
+    title: 'Communication',
+    links: [
+      { to: '/notices', label: 'Notices', icon: '📋' },
+      { to: '/admissions', label: 'Admissions', icon: '🎓' },
+    ],
+  },
+  {
+    title: 'Content',
+    links: [
+      { to: '/gallery', label: 'Gallery', icon: '🖼️' },
+      { to: '/settings', label: 'Settings', icon: '⚙️' },
+    ],
+  },
+  {
+    title: 'Tools',
+    links: [
+      { to: '/question-paper', label: 'Question Papers', icon: '📝' },
+      { to: '/dashboard', label: 'Dashboard', icon: '⊞' },
+    ],
+  },
 ]
 
 export default function Sidebar({ open, onClose }) {
@@ -46,23 +66,32 @@ export default function Sidebar({ open, onClose }) {
             <button onClick={onClose} className="md:hidden text-white text-2xl leading-none">×</button>
           </div>
 
-          <nav className="space-y-1">
-            {links.map(link => (
-              <NavLink
-                key={link.to}
-                to={link.to}
-                onClick={onClose}
-                className={({ isActive }) =>
-                  `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition ${
-                    isActive
-                      ? 'bg-white text-gray-900 font-medium'
-                      : 'text-white opacity-75 hover:opacity-100 hover:bg-white/10'
-                  }`
-                }
-              >
-                <span>{link.icon}</span>
-                {link.label}
-              </NavLink>
+          <nav className="space-y-4">
+            {categories.map(category => (
+              <div key={category.title}>
+                <p className="text-white text-[10px] font-semibold uppercase tracking-wider opacity-40 px-3 mb-1">
+                  {category.title}
+                </p>
+                <div className="space-y-1">
+                  {category.links.map(link => (
+                    <NavLink
+                      key={link.to}
+                      to={link.to}
+                      onClick={onClose}
+                      className={({ isActive }) =>
+                        `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition ${
+                          isActive
+                            ? 'bg-white text-gray-900 font-medium'
+                            : 'text-white opacity-75 hover:opacity-100 hover:bg-white/10'
+                        }`
+                      }
+                    >
+                      <span>{link.icon}</span>
+                      {link.label}
+                    </NavLink>
+                  ))}
+                </div>
+              </div>
             ))}
           </nav>
         </div>

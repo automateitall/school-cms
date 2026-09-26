@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { PDFDownloadLink } from '@react-pdf/renderer'
 import Layout from '../components/layout/Layout'
 import api from '../lib/api'
