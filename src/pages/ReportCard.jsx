@@ -6,18 +6,21 @@ import { fetchClasses } from '../lib/classes'
 export default function ReportCard() {
   const [students, setStudents] = useState([])
   const [classes, setClasses] = useState([])
+  const [examTypes, setExamTypes] = useState([])
   const [selectedClass, setSelectedClass] = useState('')
-  const [examType, setExamType] = useState('Unit Test 1')
+  const [examType, setExamType] = useState('')
   const [reports, setReports] = useState({})
   const [loading, setLoading] = useState(false)
   const [generated, setGenerated] = useState(false)
   useEffect(() => {
   fetchClasses().then(setClasses)
   }, [])
-  const examTypes = ['Unit Test 1','Unit Test 2','Mid Term','Pre Board','Final Exam']
+  useEffect(() => {
+    api.get('/examtypes').then(r => setExamTypes(r.data)).catch(() => {})
+  }, [])
 
   const generateReports = async () => {
-    if (!selectedClass) return alert('Select a class first')
+    if (!selectedClass || !examType) return alert('Select a class and exam type')
     setLoading(true)
     try {
       const studRes = await api.get(`/students?class=${selectedClass}`)
@@ -59,7 +62,8 @@ export default function ReportCard() {
             <label className="block text-sm font-medium text-gray-700 mb-1">Exam Type</label>
             <select value={examType} onChange={e => { setExamType(e.target.value); setGenerated(false) }}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none">
-              {examTypes.map(e => <option key={e}>{e}</option>)}
+              <option value="">Select exam type</option>
+              {examTypes.map(e => <option key={e.id} value={e.name}>{e.name}</option>)}
             </select>
           </div>
         </div>
