@@ -207,9 +207,8 @@ export default function PrintReportCard() {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', padding: 10, background: '#f8fafc', border: '0.5px solid #e2e8f0', borderRadius: 4, marginBottom: 16, rowGap: 8, columnGap: 16, fontSize: 13 }}>
           <div><strong>Student Name:</strong> {student?.name}</div>
           <div><strong>Roll No:</strong> {student?.rollNo}</div>
-          <div><strong>Class & Section:</strong> {student?.class}{student?.section ? ` - ${student.section}` : ''}</div>
+          <div><strong>Class:</strong> {student?.class}</div>
           <div><strong>Father's Name:</strong> {student?.parentName || '—'}</div>
-          <div><strong>Mother's Name:</strong> {student?.motherName || '—'}</div>
           <div>
             <strong>Result:</strong>{' '}
             <span style={{
@@ -249,7 +248,7 @@ export default function PrintReportCard() {
                 )
               })}
               <tr style={{ background: theme.totalObtainedBg, fontWeight: 700, color: theme.totalObtainedColor }}>
-                <td style={cellStyle(false)}>—</td>
+                <td style={cellStyle(false)}>Total</td>
                 <td style={cellStyle(false, null, true)}>{grandTotalObtained}</td>
                 <td style={cellStyle(false, null, true)}>{grandTotalMax}</td>
                 <td style={cellStyle(false, null, true)}>{grandPct.toFixed(1)}%</td>
@@ -306,7 +305,7 @@ export default function PrintReportCard() {
           </div>
           <div style={summaryCardStyle}>
             <div style={labelStyle}>Rank</div>
-            <div style={valueStyle}>{rank ? `${rank.position} / ${rank.total}` : '—'}</div>
+            <div style={valueStyle}>{rank ? rank.position : '—'}</div>
           </div>
         </div>
 
