@@ -9,35 +9,6 @@ const EXAM_GROUPS = {
   'Final Exam': ['Unit Test 1', 'Unit Test 2', 'Half Yearly', 'Final Exam'],
 }
 
-const getGrade = (percentage) => {
-  if (percentage >= 91) return 'A+'
-  if (percentage >= 75) return 'A'
-  if (percentage >= 60) return 'B+'
-  if (percentage >= 45) return 'B'
-  if (percentage >= 33) return 'C'
-  return 'F'
-}
-
-const getGradeColor = (grade) => {
-  if (grade === 'A+') return '#166534'
-  if (grade === 'A') return '#083e78'
-  if (grade === 'B+') return '#1e40af'
-  if (grade === 'B') return '#1e40af'
-  if (grade === 'C') return '#92400e'
-  return '#991b1b'
-}
-
-const TZP_GRADE_DISPLAY = {
-  'A+': '⭐⭐⭐',
-  'A': '⭐⭐',
-  'B+': '⭐',
-  'B': '⭐',
-  'C': 'Pass',
-  'F': 'Needs Improvement',
-}
-
-const displayGrade = (grade, isCMP) => isCMP ? grade : (TZP_GRADE_DISPLAY[grade] || grade)
-
 const cellStyle = (isHeader, headerColor, center) => ({
   border: '0.5px solid #e2e8f0',
   padding: '6px 8px',
@@ -171,6 +142,8 @@ export default function PrintReportCard() {
     footerText: 'This is a computer-generated report card. — Taare Zameen Par Play School, Deoria',
   }
 
+  const isSingleExam = examGroup.length === 1
+
   const examMaxMarksMap = {}
   examGroup.forEach(name => {
     const et = examTypes.find(e => e.name === name)
@@ -187,7 +160,6 @@ export default function PrintReportCard() {
   }, 0)
   const grandTotalMax = subjects.length * totalMaxPerSubject
   const grandPct = grandTotalMax > 0 ? (grandTotalObtained / grandTotalMax) * 100 : 0
-  const overallGrade = getGrade(grandPct)
 
   const summaryCardStyle = {
     background: '#f8fafc',
@@ -222,13 +194,15 @@ export default function PrintReportCard() {
 
       <div className="rc" style={{ maxWidth: 800, margin: '0 auto', padding: 24, background: 'white', border: '1px solid #e2e8f0', boxShadow: '0 1px 4px rgba(0,0,0,0.05)', color: '#1e293b' }}>
 
-        <div style={{ textAlign: 'center', paddingBottom: 12, borderBottom: theme.headerBorder, marginBottom: 16 }}>
-          <img src={theme.logo} alt={schoolName} style={{ height: 60, margin: '0 auto 6px' }} />
-          <div style={{ fontSize: 20, fontWeight: 500, color: theme.schoolNameColor }}>{theme.schoolName}</div>
-          <div style={{ fontSize: 12, color: '#64748b' }}>CC Road, Deoria, Uttar Pradesh</div>
-          <div style={{ fontSize: 11, color: '#64748b' }}>UP Board Affiliated | English Medium</div>
-          <div style={{ display: 'inline-block', marginTop: 8, background: theme.badgeBg, color: theme.badgeColor, fontSize: 13, padding: '4px 16px', borderRadius: 2 }}>
-            {examTypeParam} REPORT CARD — Session 2026–27
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, paddingBottom: 12, borderBottom: theme.headerBorder, marginBottom: 16 }}>
+          <img src={theme.logo} alt={schoolName} style={{ height: 'auto', width: 80, objectFit: 'contain', flexShrink: 0 }} />
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <div style={{ fontSize: 20, fontWeight: 500, color: theme.schoolNameColor }}>{theme.schoolName}</div>
+            <div style={{ fontSize: 12, color: '#64748b' }}>CC Road, Deoria, Uttar Pradesh</div>
+            <div style={{ fontSize: 11, color: '#64748b' }}>UP Board Affiliated | English Medium</div>
+            <div style={{ alignSelf: 'flex-start', marginTop: 8, background: theme.badgeBg, color: theme.badgeColor, fontSize: 13, padding: '4px 16px', borderRadius: 2 }}>
+              {examTypeParam} REPORT CARD — Session 2026–27
+            </div>
           </div>
         </div>
 
@@ -252,34 +226,58 @@ export default function PrintReportCard() {
 
         {subjects.length === 0 ? (
           <p style={{ textAlign: 'center', color: '#94a3b8', padding: '24px 0' }}>No subjects configured for Class {student?.class}.</p>
+        ) : isSingleExam ? (
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, marginBottom: 14 }}>
+            <thead>
+              <tr style={{ background: theme.tableHeaderBg }}>
+                <th style={cellStyle(true, theme.tableHeaderColor)}>Subject</th>
+                <th style={cellStyle(true, theme.tableHeaderColor, true)}>{examGroup[0]}</th>
+                <th style={cellStyle(true, theme.tableHeaderColor, true)}>Max Marks</th>
+                <th style={cellStyle(true, theme.tableHeaderColor, true)}>%</th>
+              </tr>
+            </thead>
+            <tbody>
+              {subjects.map((subj, i) => {
+                const maxForSubject = examMaxMarksMap[examGroup[0]] || 0
+                const marksValue = marksBySubjectExam[subj.name]?.[examGroup[0]] ?? 0
+                const pct = maxForSubject > 0 ? (marksValue / maxForSubject) * 100 : 0
+                return (
+                  <tr key={subj.id} style={{ background: i % 2 === 1 ? theme.altRowBg : 'white' }}>
+                    <td style={cellStyle(false)}>{subj.name}</td>
+                    <td style={cellStyle(false, null, true)}>{marksValue}</td>
+                    <td style={cellStyle(false, null, true)}>{maxForSubject}</td>
+                    <td style={cellStyle(false, null, true)}>{pct.toFixed(1)}%</td>
+                  </tr>
+                )
+              })}
+              <tr style={{ background: theme.totalObtainedBg, fontWeight: 700, color: theme.totalObtainedColor }}>
+                <td style={cellStyle(false)}>—</td>
+                <td style={cellStyle(false, null, true)}>{grandTotalObtained}</td>
+                <td style={cellStyle(false, null, true)}>{grandTotalMax}</td>
+                <td style={cellStyle(false, null, true)}>{grandPct.toFixed(1)}%</td>
+              </tr>
+            </tbody>
+          </table>
         ) : (
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, marginBottom: 14 }}>
             <thead>
               <tr style={{ background: theme.tableHeaderBg }}>
                 <th style={cellStyle(true, theme.tableHeaderColor)}>Subject</th>
                 {examGroup.map(name => (
-                  <th key={name} style={cellStyle(true, theme.tableHeaderColor, true)}>{name} /{examMaxMarksMap[name]}</th>
+                  <th key={name} style={cellStyle(true, theme.tableHeaderColor, true)}>{name} ({examMaxMarksMap[name]})</th>
                 ))}
-                <th style={cellStyle(true, theme.tableHeaderColor, true)}>Total /{totalMaxPerSubject}</th>
-                <th style={cellStyle(true, theme.tableHeaderColor, true)}>%</th>
-                <th style={cellStyle(true, theme.tableHeaderColor, true)}>Grade</th>
+                <th style={cellStyle(true, theme.tableHeaderColor, true)}>Total ({totalMaxPerSubject})</th>
               </tr>
             </thead>
             <tbody>
               {subjects.map((subj, i) => {
                 const examValues = examGroup.map(name => marksBySubjectExam[subj.name]?.[name] ?? 0)
                 const totalObtained = examValues.reduce((a, b) => a + b, 0)
-                const pct = totalMaxPerSubject > 0 ? (totalObtained / totalMaxPerSubject) * 100 : 0
-                const grade = getGrade(pct)
                 return (
                   <tr key={subj.id} style={{ background: i % 2 === 1 ? theme.altRowBg : 'white' }}>
                     <td style={cellStyle(false)}>{subj.name}</td>
                     {examValues.map((v, idx) => <td key={idx} style={cellStyle(false, null, true)}>{v}</td>)}
                     <td style={cellStyle(false, null, true)}>{totalObtained}</td>
-                    <td style={cellStyle(false, null, true)}>{pct.toFixed(1)}%</td>
-                    <td style={{ ...cellStyle(false, null, true), color: getGradeColor(grade), fontWeight: 700 }}>
-                      {displayGrade(grade, isCMP)}
-                    </td>
                   </tr>
                 )
               })}
@@ -287,21 +285,17 @@ export default function PrintReportCard() {
                 <td style={cellStyle(false)}>Total Obtained</td>
                 {examGroup.map(name => <td key={name} style={cellStyle(false, null, true)}>{colTotalObtained(name)}</td>)}
                 <td style={cellStyle(false, null, true)}>{grandTotalObtained}</td>
-                <td style={cellStyle(false, null, true)}>{grandPct.toFixed(1)}%</td>
-                <td style={cellStyle(false, null, true)}>{displayGrade(overallGrade, isCMP)}</td>
               </tr>
               <tr style={{ background: '#f8fafc', fontStyle: 'italic', color: '#64748b' }}>
                 <td style={cellStyle(false)}>Total Maximum</td>
                 {examGroup.map(name => <td key={name} style={cellStyle(false, null, true)}>{examMaxMarksMap[name] * subjects.length}</td>)}
                 <td style={cellStyle(false, null, true)}>{grandTotalMax}</td>
-                <td style={cellStyle(false, null, true)}>—</td>
-                <td style={cellStyle(false, null, true)}>—</td>
               </tr>
             </tbody>
           </table>
         )}
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginTop: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginTop: 14 }}>
           <div style={summaryCardStyle}>
             <div style={labelStyle}>Total Marks</div>
             <div style={valueStyle}>{grandTotalObtained}/{grandTotalMax}</div>
@@ -311,10 +305,6 @@ export default function PrintReportCard() {
             <div style={{ ...valueStyle, color: grandPct >= 75 ? '#00bf63' : grandPct >= 50 ? '#f59e0b' : '#e53e3e' }}>
               {grandPct.toFixed(1)}%
             </div>
-          </div>
-          <div style={summaryCardStyle}>
-            <div style={labelStyle}>Grade</div>
-            <div style={{ ...valueStyle, color: getGradeColor(overallGrade) }}>{displayGrade(overallGrade, isCMP)}</div>
           </div>
           <div style={summaryCardStyle}>
             <div style={labelStyle}>Rank</div>
