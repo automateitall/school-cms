@@ -23,6 +23,7 @@ export default function StudentProfile() {
   const [examTypes, setExamTypes] = useState([])
   const [uploading, setUploading] = useState(false)
   const [showEdit, setShowEdit] = useState(false)
+  const [attMonthValue, setAttMonthValue] = useState(new Date().toISOString().slice(0, 7))
 
   const fetchStudent = async () => {
     setLoading(true)
@@ -88,8 +89,37 @@ export default function StudentProfile() {
 
   const presentCount = attendance.filter(a => a.status === 'present').length
   const absentCount = attendance.filter(a => a.status === 'absent').length
+  const lateCount = attendance.filter(a => a.status === 'late').length
   const totalMarked = attendance.length
   const attendancePct = totalMarked > 0 ? ((presentCount / totalMarked) * 100).toFixed(1) : '0.0'
+
+  const [attYear, attMonthNum] = attMonthValue.split('-').map(Number)
+  const monthRecords = attendance.filter(a => {
+    const d = new Date(a.date)
+    return d.getFullYear() === attYear && d.getMonth() + 1 === attMonthNum
+  })
+  const recordByDay = {}
+  monthRecords.forEach(a => { recordByDay[new Date(a.date).getDate()] = a.status })
+
+  const daysInMonth = attYear && attMonthNum ? new Date(attYear, attMonthNum, 0).getDate() : 0
+  const firstWeekday = attYear && attMonthNum ? (new Date(attYear, attMonthNum - 1, 1).getDay() + 6) % 7 : 0
+  const totalCells = daysInMonth > 0 ? Math.ceil((firstWeekday + daysInMonth) / 7) * 7 : 0
+  const calendarCells = Array.from({ length: totalCells }, (_, i) => {
+    const dayNum = i - firstWeekday + 1
+    return dayNum >= 1 && dayNum <= daysInMonth ? dayNum : null
+  })
+
+  const monthPresent = monthRecords.filter(a => a.status === 'present').length
+  const monthAbsent = monthRecords.filter(a => a.status === 'absent').length
+  const monthLate = monthRecords.filter(a => a.status === 'late').length
+  const monthPct = monthRecords.length > 0 ? ((monthPresent / monthRecords.length) * 100).toFixed(0) : 0
+
+  const dayCellMeta = (status) => {
+    if (status === 'present') return { bg: '#e6f9f0', color: '#00bf63' }
+    if (status === 'absent') return { bg: '#ffeaea', color: '#e53e3e' }
+    if (status === 'late') return { bg: '#fef3c7', color: '#92400e' }
+    return { bg: '#f8fafc', color: '#cbd5e1' }
+  }
 
   return (
     <Layout>
@@ -192,9 +222,9 @@ export default function StudentProfile() {
 
           <div className="bg-white border border-gray-200 rounded-xl p-5">
             <h3 style={{ color: '#083e78' }} className="font-semibold mb-4">Attendance Summary</h3>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 gap-3">
               <div style={{ background: '#e8f0fb' }} className="rounded-lg p-4 text-center">
-                <p className="text-gray-500 text-xs mb-1">Total Marked</p>
+                <p className="text-gray-500 text-xs mb-1">Total Recorded</p>
                 <p style={{ color: '#083e78' }} className="text-2xl font-bold">{totalMarked}</p>
               </div>
               <div style={{ background: '#e6f9f0' }} className="rounded-lg p-4 text-center">
@@ -204,6 +234,10 @@ export default function StudentProfile() {
               <div style={{ background: '#ffeaea' }} className="rounded-lg p-4 text-center">
                 <p className="text-gray-500 text-xs mb-1">Absent</p>
                 <p style={{ color: '#e53e3e' }} className="text-2xl font-bold">{absentCount}</p>
+              </div>
+              <div style={{ background: '#fef3c7' }} className="rounded-lg p-4 text-center">
+                <p className="text-gray-500 text-xs mb-1">Late</p>
+                <p style={{ color: '#92400e' }} className="text-2xl font-bold">{lateCount}</p>
               </div>
             </div>
             <p className="text-center text-sm text-gray-500 mt-4">
@@ -263,38 +297,42 @@ export default function StudentProfile() {
       )}
 
       {tab === 'Attendance' && (
-        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-          {attendance.length === 0 ? (
-            <p className="text-center text-gray-400 py-12">No attendance records yet.</p>
+        <div className="bg-white border border-gray-200 rounded-xl p-5">
+          <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+            <h3 style={{ color: '#083e78' }} className="font-semibold">Monthly Attendance</h3>
+            <input type="month" value={attMonthValue} onChange={e => setAttMonthValue(e.target.value)}
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none" />
+          </div>
+
+          {monthRecords.length === 0 ? (
+            <p className="text-center text-gray-400 py-12">No attendance recorded for this month.</p>
           ) : (
-            <table className="w-full text-sm">
-              <thead style={{ background: '#f0f4fa' }}>
-                <tr>
-                  <th className="text-left px-4 py-3 text-gray-600 font-medium">Date</th>
-                  <th className="text-left px-4 py-3 text-gray-600 font-medium">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {[...attendance]
-                  .sort((a, b) => new Date(b.date) - new Date(a.date))
-                  .map((a, i) => (
-                    <tr key={a.id} style={{ background: i % 2 === 0 ? '#fff' : '#fafafa' }}
-                      className="border-t border-gray-100">
-                      <td className="px-4 py-3 text-gray-600">
-                        {new Date(a.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span style={{
-                          background: a.status === 'present' ? '#e6f9f0' : a.status === 'absent' ? '#ffeaea' : '#fef3c7',
-                          color: a.status === 'present' ? '#00bf63' : a.status === 'absent' ? '#e53e3e' : '#92400e'
-                        }} className="px-2 py-1 rounded-md text-xs font-semibold capitalize">
-                          {a.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
+            <>
+              <div className="grid grid-cols-7 gap-2 mb-2">
+                {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => (
+                  <div key={d} className="text-center text-xs font-semibold text-gray-400 py-1">{d}</div>
+                ))}
+              </div>
+              <div className="grid grid-cols-7 gap-2 mb-5">
+                {calendarCells.map((day, i) => {
+                  if (!day) return <div key={i} />
+                  const status = recordByDay[day]
+                  const meta = dayCellMeta(status)
+                  return (
+                    <div key={i} style={{ background: meta.bg }} className="rounded-lg py-2 text-center">
+                      <p className="text-xs text-gray-500">{day}</p>
+                      {status && <p style={{ color: meta.color }} className="text-xs font-bold uppercase">{status[0]}</p>}
+                    </div>
+                  )
+                })}
+              </div>
+              <div className="flex items-center justify-center gap-6 text-sm border-t border-gray-100 pt-4 flex-wrap">
+                <span style={{ color: '#00bf63' }} className="font-semibold">Present {monthPresent}</span>
+                <span style={{ color: '#e53e3e' }} className="font-semibold">Absent {monthAbsent}</span>
+                <span style={{ color: '#92400e' }} className="font-semibold">Late {monthLate}</span>
+                <span style={{ color: '#083e78' }} className="font-semibold">{monthPct}%</span>
+              </div>
+            </>
           )}
         </div>
       )}
