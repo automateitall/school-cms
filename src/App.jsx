@@ -12,6 +12,7 @@ import Marks from './pages/Marks'
 import ReportCard from './pages/ReportCard'
 import PrintReportCard from './pages/PrintReportCard'
 import QuestionPaper from './pages/QuestionPaper'
+import PrintQuestionPaper from './pages/PrintQuestionPaper'
 import Settings from './pages/Settings'
 import Subjects from './pages/Subjects'
 import ExamTypes from './pages/ExamTypes'
@@ -34,6 +35,7 @@ function AppRoutes() {
         <Route path="/report-card" element={<ReportCard />} />
         <Route path="/print/report-card/:studentId" element={<PrintReportCard />} />
         <Route path="/question-paper" element={<QuestionPaper />} />
+        <Route path="/print/question-paper/:id" element={<PrintQuestionPaper />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/subjects" element={<Subjects />} />
         <Route path="/exam-types" element={<ExamTypes />} />
