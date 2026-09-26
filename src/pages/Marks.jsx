@@ -8,6 +8,7 @@ const pctColor = (pct) => pct >= 75 ? '#00bf63' : pct >= 50 ? '#f59e0b' : '#e53e
 export default function Marks() {
   const [classes, setClasses] = useState([])
   const [examTypes, setExamTypes] = useState([])
+  const [currentSession, setCurrentSession] = useState('')
   const [selectedClass, setSelectedClass] = useState('')
   const [selectedExamType, setSelectedExamType] = useState('')
   const [loading, setLoading] = useState(false)
@@ -27,6 +28,10 @@ export default function Marks() {
 
   useEffect(() => {
     api.get('/examtypes').then(r => setExamTypes(r.data)).catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    api.get('/settings').then(r => setCurrentSession(r.data.currentSession)).catch(() => {})
   }, [])
 
   const selectedExamTypeObj = examTypes.find(et => et.name === selectedExamType)
@@ -157,6 +162,11 @@ export default function Marks() {
           <h1 style={{ color: '#083e78' }} className="text-2xl font-bold">Marks & Results</h1>
           <p className="text-gray-500 text-sm mt-1">Enter exam marks for students</p>
         </div>
+        {currentSession && (
+          <span style={{ background: '#e8f0fb', color: '#083e78' }} className="px-3 py-1.5 rounded-lg text-xs font-semibold">
+            Session: {currentSession}
+          </span>
+        )}
       </div>
 
       <div className="bg-white border border-gray-200 rounded-xl p-5 mb-5">

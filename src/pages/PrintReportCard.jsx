@@ -21,6 +21,7 @@ export default function PrintReportCard() {
   const { studentId } = useParams()
   const [searchParams] = useSearchParams()
   const examTypeParam = searchParams.get('examType') || 'Unit Test 1'
+  const session = searchParams.get('session') || '2026-27'
 
   const [student, setStudent] = useState(null)
   const [examTypes, setExamTypes] = useState([])
@@ -52,7 +53,7 @@ export default function PrintReportCard() {
         ])
 
         const marksResults = await Promise.all(
-          groupNames.map(name => api.get(`/marks?studentId=${studentId}&examType=${encodeURIComponent(name)}`))
+          groupNames.map(name => api.get(`/marks?studentId=${studentId}&examType=${encodeURIComponent(name)}&session=${encodeURIComponent(session)}`))
         )
         const marksMap = {}
         subjectsRes.data.forEach(subj => { marksMap[subj.name] = {} })
@@ -69,7 +70,7 @@ export default function PrintReportCard() {
         const finalExamType = groupNames[groupNames.length - 1]
         if (finalExamType) {
           const classmateMarksRes = await Promise.all(
-            studentsRes.data.map(s => api.get(`/marks?studentId=${s.id}&examType=${encodeURIComponent(finalExamType)}`))
+            studentsRes.data.map(s => api.get(`/marks?studentId=${s.id}&examType=${encodeURIComponent(finalExamType)}&session=${encodeURIComponent(session)}`))
           )
           const totals = studentsRes.data.map((s, idx) => ({
             studentId: s.id,
@@ -96,7 +97,7 @@ export default function PrintReportCard() {
 
     load()
     return () => { cancelled = true }
-  }, [studentId, examTypeParam])
+  }, [studentId, examTypeParam, session])
 
   if (loading) {
     return <div style={{ padding: '2rem', textAlign: 'center', color: '#94a3b8', fontFamily: 'Arial, sans-serif' }}>Loading report card...</div>
@@ -199,7 +200,7 @@ export default function PrintReportCard() {
             <div style={{ fontSize: 12, color: '#64748b' }}>CC Road, Deoria, Uttar Pradesh</div>
             <div style={{ fontSize: 11, color: '#64748b' }}>UP Board Affiliated | English Medium</div>
             <div style={{ alignSelf: 'flex-start', marginTop: 8, background: theme.badgeBg, color: theme.badgeColor, fontSize: 13, padding: '4px 16px', borderRadius: 2 }}>
-              {examTypeParam} REPORT CARD — Session 2026–27
+              {examTypeParam} REPORT CARD — Session {session}
             </div>
           </div>
         </div>
@@ -343,7 +344,7 @@ export default function PrintReportCard() {
             </div>
           </div>
           <div style={{ fontSize: '10px', color: '#555', textAlign: 'right', lineHeight: '1.6' }}>
-            <div>Session: 2026–27</div>
+            <div>Session: {session}</div>
             <div>Generated: {new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</div>
           </div>
         </div>

@@ -11,14 +11,14 @@ const Section = ({ title, children }) => (
   </div>
 )
 
-const Field = ({ label, value, onChange, type = 'text', full = false, textarea = false }) => (
+const Field = ({ label, value, onChange, type = 'text', full = false, textarea = false, placeholder = '' }) => (
   <div className={full ? 'col-span-2' : ''}>
     <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
     {textarea ? (
-      <textarea value={value} onChange={e => onChange(e.target.value)} rows={3}
+      <textarea value={value} onChange={e => onChange(e.target.value)} rows={3} placeholder={placeholder}
         className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none resize-none" />
     ) : (
-      <input type={type} value={value} onChange={e => onChange(e.target.value)}
+      <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
         className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none" />
     )}
   </div>
@@ -98,6 +98,7 @@ export default function Settings() {
         <Field label="Working Days" value={settings.workingDays} onChange={v => update('workingDays', v)} />
         <Field label="Founded Year" value={settings.foundedYear} onChange={v => update('foundedYear', v)} />
         <Field label="UP Board Eyebrow Badge" value={settings.cmSchoolEyebrow} onChange={v => update('cmSchoolEyebrow', v)} />
+        <Field label="Current Session" value={settings.currentSession} onChange={v => update('currentSession', v)} placeholder="e.g. 2026-27" />
       </Section>
 
       <Section title="Stats (shown on homepage and about page)">

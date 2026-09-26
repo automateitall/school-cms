@@ -24,6 +24,11 @@ export default function StudentProfile() {
   const [uploading, setUploading] = useState(false)
   const [showEdit, setShowEdit] = useState(false)
   const [attMonthValue, setAttMonthValue] = useState(new Date().toISOString().slice(0, 7))
+  const [currentSession, setCurrentSession] = useState('')
+  const [marksSession, setMarksSession] = useState('')
+  const [attendanceSession, setAttendanceSession] = useState('')
+  const [markSessions, setMarkSessions] = useState([])
+  const [attendanceSessions, setAttendanceSessions] = useState([])
 
   const fetchStudent = async () => {
     setLoading(true)
@@ -41,12 +46,42 @@ export default function StudentProfile() {
   useEffect(() => { fetchStudent() }, [id])
 
   useEffect(() => {
+    api.get('/settings').then(r => {
+      const s = r.data.currentSession || '2026-27'
+      setCurrentSession(s)
+      setMarksSession(s)
+      setAttendanceSession(s)
+    }).catch(() => {})
+  }, [])
+
+  useEffect(() => {
     if (!student) return
-    api.get(`/attendance?studentId=${id}`).then(res => setAttendance(res.data)).catch(() => setAttendance([]))
-    api.get(`/marks?studentId=${id}`).then(res => setMarks(res.data)).catch(() => setMarks([]))
     api.get(`/subjects?class=${encodeURIComponent(student.class)}`).then(res => setSubjects(res.data)).catch(() => setSubjects([]))
     api.get('/examtypes').then(res => setExamTypes(res.data)).catch(() => setExamTypes([]))
-  }, [student?.class, id])
+  }, [student?.class])
+
+  useEffect(() => {
+    if (!student) return
+    api.get(`/marks?studentId=${id}&session=all`).then(res => {
+      setMarkSessions([...new Set(res.data.map(m => m.session).filter(Boolean))])
+    }).catch(() => setMarkSessions([]))
+    api.get(`/attendance?studentId=${id}&session=all`).then(res => {
+      setAttendanceSessions([...new Set(res.data.map(a => a.session).filter(Boolean))])
+    }).catch(() => setAttendanceSessions([]))
+  }, [student, id])
+
+  useEffect(() => {
+    if (!student || !marksSession) return
+    api.get(`/marks?studentId=${id}&session=${encodeURIComponent(marksSession)}`).then(res => setMarks(res.data)).catch(() => setMarks([]))
+  }, [student, id, marksSession])
+
+  useEffect(() => {
+    if (!student || !attendanceSession) return
+    api.get(`/attendance?studentId=${id}&session=${encodeURIComponent(attendanceSession)}`).then(res => setAttendance(res.data)).catch(() => setAttendance([]))
+  }, [student, id, attendanceSession])
+
+  const markSessionOptions = [...new Set([currentSession, ...markSessions])].filter(Boolean).sort().reverse()
+  const attendanceSessionOptions = [...new Set([currentSession, ...attendanceSessions])].filter(Boolean).sort().reverse()
 
   const handlePhotoClick = () => {
     document.getElementById('profile-photo-input')?.click()
@@ -249,6 +284,15 @@ export default function StudentProfile() {
 
       {tab === 'Marks' && (
         <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
+          <div className="flex items-center justify-between p-4 border-b border-gray-100 flex-wrap gap-3">
+            <span style={{ background: '#e8f0fb', color: '#083e78' }} className="px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap">
+              Session: {marksSession || currentSession}
+            </span>
+            <select value={marksSession} onChange={e => setMarksSession(e.target.value)}
+              className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none">
+              {markSessionOptions.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
           {subjects.length === 0 ? (
             <p className="text-center text-gray-400 py-12">No subjects configured for Class {student.class}.</p>
           ) : (
@@ -300,8 +344,17 @@ export default function StudentProfile() {
         <div className="bg-white border border-gray-200 rounded-xl p-5">
           <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
             <h3 style={{ color: '#083e78' }} className="font-semibold">Monthly Attendance</h3>
-            <input type="month" value={attMonthValue} onChange={e => setAttMonthValue(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none" />
+            <div className="flex items-center gap-2 flex-wrap">
+              <span style={{ background: '#e8f0fb', color: '#083e78' }} className="px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap">
+                Session: {attendanceSession || currentSession}
+              </span>
+              <select value={attendanceSession} onChange={e => setAttendanceSession(e.target.value)}
+                className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none">
+                {attendanceSessionOptions.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+              <input type="month" value={attMonthValue} onChange={e => setAttMonthValue(e.target.value)}
+                className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none" />
+            </div>
           </div>
 
           {monthRecords.length === 0 ? (

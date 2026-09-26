@@ -16,9 +16,14 @@ function statusMeta(status) {
 export default function Attendance() {
   const [tab, setTab] = useState('mark')
   const [classes, setClasses] = useState([])
+  const [currentSession, setCurrentSession] = useState('')
 
   useEffect(() => {
     fetchClasses().then(setClasses)
+  }, [])
+
+  useEffect(() => {
+    api.get('/settings').then(r => setCurrentSession(r.data.currentSession)).catch(() => {})
   }, [])
 
   return (
@@ -28,6 +33,11 @@ export default function Attendance() {
           <h1 style={{ color: '#083e78' }} className="text-2xl font-bold">Attendance</h1>
           <p className="text-gray-500 text-sm mt-1">Mark daily attendance and review monthly records</p>
         </div>
+        {currentSession && (
+          <span style={{ background: '#e8f0fb', color: '#083e78' }} className="px-3 py-1.5 rounded-lg text-xs font-semibold">
+            Session: {currentSession}
+          </span>
+        )}
       </div>
 
       <div className="flex gap-2 mb-5 border-b border-gray-200">

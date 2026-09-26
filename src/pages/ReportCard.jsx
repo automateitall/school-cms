@@ -7,6 +7,7 @@ export default function ReportCard() {
   const [students, setStudents] = useState([])
   const [classes, setClasses] = useState([])
   const [examTypes, setExamTypes] = useState([])
+  const [currentSession, setCurrentSession] = useState('')
   const [selectedClass, setSelectedClass] = useState('')
   const [examType, setExamType] = useState('')
   const [reports, setReports] = useState({})
@@ -17,6 +18,9 @@ export default function ReportCard() {
   }, [])
   useEffect(() => {
     api.get('/examtypes').then(r => setExamTypes(r.data)).catch(() => {})
+  }, [])
+  useEffect(() => {
+    api.get('/settings').then(r => setCurrentSession(r.data.currentSession)).catch(() => {})
   }, [])
 
   const generateReports = async () => {
@@ -119,7 +123,7 @@ export default function ReportCard() {
                     <td className="px-4 py-3">
                       {report.marks?.length > 0 ? (
                         <button
-                          onClick={() => window.open(`/print/report-card/${s.id}?examType=${encodeURIComponent(examType)}`, '_blank')}
+                          onClick={() => window.open(`/print/report-card/${s.id}?examType=${encodeURIComponent(examType)}&session=${encodeURIComponent(currentSession)}`, '_blank')}
                           style={{ background: '#083e78' }}
                           className="text-white px-3 py-1.5 rounded text-xs font-medium hover:opacity-90"
                         >
