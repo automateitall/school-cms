@@ -10,6 +10,7 @@ import Admissions from './pages/Admissions'
 import Attendance from './pages/Attendance'
 import Marks from './pages/Marks'
 import ReportCard from './pages/ReportCard'
+import PrintReportCard from './pages/PrintReportCard'
 import QuestionPaper from './pages/QuestionPaper'
 import Settings from './pages/Settings'
 import Subjects from './pages/Subjects'
@@ -31,6 +32,7 @@ function AppRoutes() {
         <Route path="/attendance" element={<Attendance />} />
         <Route path="/marks" element={<Marks />} />
         <Route path="/report-card" element={<ReportCard />} />
+        <Route path="/print/report-card/:studentId" element={<PrintReportCard />} />
         <Route path="/question-paper" element={<QuestionPaper />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/subjects" element={<Subjects />} />

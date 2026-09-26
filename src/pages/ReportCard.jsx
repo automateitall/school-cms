@@ -1,8 +1,6 @@
 import { useState, useEffect } from 'react'
-import { PDFDownloadLink } from '@react-pdf/renderer'
 import Layout from '../components/layout/Layout'
 import api from '../lib/api'
-import ReportCardTemplate from '../components/pdf/ReportCardTemplate'
 import { fetchClasses } from '../lib/classes'
 
 export default function ReportCard() {
@@ -116,27 +114,13 @@ export default function ReportCard() {
                     </td>
                     <td className="px-4 py-3">
                       {report.marks?.length > 0 ? (
-                        <PDFDownloadLink
-                          document={
-                            <ReportCardTemplate
-                              student={s}
-                              marks={report.marks}
-                              examType={examType}
-                              totalMarks={report.totalMarks}
-                              totalMax={report.totalMax}
-                              percentage={report.percentage}
-                              grade={report.grade}
-                            />
-                          }
-                          fileName={`ReportCard_${s.name}_${examType}.pdf`}
+                        <button
+                          onClick={() => window.open(`/print/report-card/${s.id}?examType=${encodeURIComponent(examType)}`, '_blank')}
+                          style={{ background: '#083e78' }}
+                          className="text-white px-3 py-1.5 rounded text-xs font-medium hover:opacity-90"
                         >
-                          {({ loading }) => (
-                            <button style={{ background: '#083e78' }}
-                              className="text-white px-3 py-1.5 rounded text-xs font-medium hover:opacity-90">
-                              {loading ? 'Preparing...' : '⬇ Download PDF'}
-                            </button>
-                          )}
-                        </PDFDownloadLink>
+                          🖨 Print Report Card
+                        </button>
                       ) : (
                         <span className="text-gray-400 text-xs">No marks entered</span>
                       )}
