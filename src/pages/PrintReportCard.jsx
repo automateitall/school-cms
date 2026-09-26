@@ -125,7 +125,6 @@ export default function PrintReportCard() {
     totalObtainedBg: '#e8f0fb',
     totalObtainedColor: '#083e78',
     accent: '#083e78',
-    footerText: 'This is a computer-generated report card. — CM Public School, Deoria',
   } : {
     logo: '/logo-tzp.svg',
     schoolName: 'TAARE ZAMEEN PAR PLAY SCHOOL',
@@ -139,7 +138,6 @@ export default function PrintReportCard() {
     totalObtainedBg: '#e6f9f0',
     totalObtainedColor: '#00bf63',
     accent: '#ff914d',
-    footerText: 'This is a computer-generated report card. — Taare Zameen Par Play School, Deoria',
   }
 
   const isSingleExam = examGroup.length === 1
@@ -312,17 +310,41 @@ export default function PrintReportCard() {
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20, marginTop: 16, paddingTop: 16, borderTop: '0.5px solid #e2e8f0' }}>
-          {['Class teacher', 'Principal', 'Parent / Guardian'].map(label => (
-            <div key={label} style={{ textAlign: 'center' }}>
-              <div style={{ height: 20 }} />
-              <div style={{ borderTop: '0.5px solid #94a3b8', paddingTop: 4, fontSize: 12, color: '#64748b' }}>{label}</div>
+        <div style={{ border: '1px solid #ccc', borderRadius: '2px', padding: '12px 16px', marginTop: 16, marginBottom: '24px' }}>
+          <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#083e78', letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: '10px' }}>Teacher's Remarks</div>
+          {[1, 2, 3].map(i => (
+            <div key={i} style={{ borderBottom: '1px solid #e0e0e0', height: '20px', marginBottom: '12px' }} />
+          ))}
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '24px', marginBottom: '24px' }}>
+          {['Class Teacher', 'Principal', 'Parent / Guardian'].map(label => (
+            <div key={label} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <div style={{ height: '56px' }} />
+              <div style={{ width: '100%', borderTop: '1px solid #333', marginBottom: '6px' }} />
+              <div style={{ fontSize: '11px', color: '#444', textAlign: 'center', fontWeight: 'bold' }}>{label}</div>
             </div>
           ))}
         </div>
 
-        <div style={{ textAlign: 'center', fontSize: 10, color: '#94a3b8', marginTop: 10 }}>
-          {theme.footerText}
+        <div style={{ borderTop: `2px solid ${isCMP ? '#083e78' : '#ff914d'}`, paddingTop: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div style={{ fontSize: '10px', color: '#555', lineHeight: '1.6' }}>
+            <div>{isCMP ? 'CM Public School' : 'Taare Zameen Par Play School'}</div>
+            <div>CC Road, Deoria, U.P.</div>
+            <div>Ph: +91 90444 40703 / 80907 80057</div>
+          </div>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: '11px', fontWeight: 'bold', color: isCMP ? '#083e78' : '#c45e1e' }}>
+              {isCMP ? 'UP Board Affiliated · English Medium' : 'Play School · Age 2–6'}
+            </div>
+            <div style={{ fontSize: '9px', color: '#888', fontStyle: 'italic', marginTop: '2px' }}>
+              "Nurturing minds, building futures"
+            </div>
+          </div>
+          <div style={{ fontSize: '10px', color: '#555', textAlign: 'right', lineHeight: '1.6' }}>
+            <div>Session: 2026–27</div>
+            <div>Generated: {new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</div>
+          </div>
         </div>
       </div>
     </div>
