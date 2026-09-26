@@ -19,6 +19,7 @@ export default function Marks() {
   const [markIds, setMarkIds] = useState({})
   const [editingRows, setEditingRows] = useState({})
   const [savingRows, setSavingRows] = useState({})
+  const [cellWarnings, setCellWarnings] = useState({})
 
   useEffect(() => {
     fetchClasses().then(setClasses)
@@ -67,6 +68,7 @@ export default function Marks() {
       setMarksData(dataMap)
       setMarkIds(idMap)
       setEditingRows(editMap)
+      setCellWarnings({})
       setLoaded(true)
     } catch (err) {
       console.error(err)
@@ -77,9 +79,18 @@ export default function Marks() {
   }
 
   const handleMarkChange = (studentId, subjectName, value) => {
+    const numValue = parseFloat(value)
+    const exceeds = value !== '' && !isNaN(numValue) && numValue > maxMarks
+    const finalValue = exceeds ? String(maxMarks) : value
+
     setMarksData(prev => ({
       ...prev,
-      [studentId]: { ...prev[studentId], [subjectName]: value }
+      [studentId]: { ...prev[studentId], [subjectName]: finalValue }
+    }))
+
+    setCellWarnings(prev => ({
+      ...prev,
+      [studentId]: { ...prev[studentId], [subjectName]: exceeds }
     }))
   }
 
@@ -93,9 +104,18 @@ export default function Marks() {
   }
 
   const handleSaveRow = async (studentId) => {
+    const data = marksData[studentId] || {}
+    const hasExceeded = subjects.some(subj => {
+      const value = data[subj.name]
+      return value !== '' && value !== null && value !== undefined && parseFloat(value) > maxMarks
+    })
+    if (hasExceeded) {
+      alert('Some marks exceed the maximum. Please fix before saving.')
+      return
+    }
+
     setSavingRows(prev => ({ ...prev, [studentId]: true }))
     try {
-      const data = marksData[studentId] || {}
       const ids = { ...(markIds[studentId] || {}) }
 
       for (const subj of subjects) {
@@ -212,6 +232,11 @@ export default function Marks() {
                           className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm w-20 text-center focus:outline-none disabled:bg-gray-50 disabled:text-gray-400"
                           placeholder="—"
                         />
+                        {cellWarnings[s.id]?.[subj.name] && (
+                          <p className="text-red-500 mt-1" style={{ fontSize: '10px' }}>
+                            Cannot exceed {maxMarks}
+                          </p>
+                        )}
                       </td>
                     ))}
                     <td className="px-4 py-3 text-center font-medium text-gray-700 whitespace-nowrap">
