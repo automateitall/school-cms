@@ -35,7 +35,7 @@ export default function QuestionPaperTemplate({ paperData }) {
             <Image src={CM_LOGO} style={{ width: 70, height: 70, marginRight: 10 }} />
             <View style={{ alignItems: 'center' }}>
               <Text style={styles.schoolName}>{schoolName || 'CM Public School'}</Text>
-              <Text style={styles.schoolSub}>CBSE Affiliated · New Delhi, India</Text>
+              <Text style={styles.schoolSub}>UP Board Affiliated · New Delhi, India</Text>
               <Text style={styles.schoolSub}>Tel: +91 98765 43210 · info@cmtzpschool.in</Text>
               <Text style={styles.paperTitle}>{examType}</Text>
             </View>

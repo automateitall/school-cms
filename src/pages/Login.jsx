@@ -1,11 +1,15 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import api from '../lib/api'
+import { useAuth } from '../context/AuthContext'
 
 export default function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const { login } = useAuth()
+  const navigate = useNavigate()
 
   const handleLogin = async (e) => {
     e.preventDefault()
@@ -18,10 +22,8 @@ export default function Login() {
       password
     })
 
-      localStorage.setItem('token', res.data.token)
-      localStorage.setItem('user', JSON.stringify(res.data.user))
-
-      window.location.href = '/dashboard'
+      login(res.data.token, res.data.user)
+      navigate('/dashboard')
     } catch (err) {
       setError('Invalid email or password')
     } finally {
@@ -37,7 +39,7 @@ export default function Login() {
           <img
   src="/logo-cm.svg"
   alt="CM Public School"
-  className="h-16 mx-auto mb-3"npm 
+  className="h-16 mx-auto mb-3"
 />
           <h1 style={{ color: '#083e78' }} className="text-2xl font-bold">School CMS</h1>
           <p className="text-gray-500 text-sm mt-1">Sign in to your staff account</p>

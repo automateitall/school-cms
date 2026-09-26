@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import Layout from '../components/layout/Layout'
 import api from '../lib/api'
+import { useAuth } from '../context/AuthContext'
 
 export default function Dashboard() {
   const [stats, setStats] = useState({
@@ -8,7 +9,7 @@ export default function Dashboard() {
     notices: 0,
     admissions: 0
   })
-  const user = JSON.parse(localStorage.getItem('user') || '{}')
+  const { user } = useAuth()
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -40,14 +41,14 @@ export default function Dashboard() {
     <Layout>
       <div className="mb-8">
         <h1 style={{ color: '#083e78' }} className="text-2xl font-bold">
-          Welcome, {user.name} 👋
+          Welcome, {user?.name} 👋
         </h1>
         <p className="text-gray-500 text-sm mt-1">
           {new Date().toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
         </p>
       </div>
 
-      <div className="grid grid-cols-3 gap-5 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-8">
         {cards.map(card => (
           <div key={card.label}
             style={{ background: card.bg }}
@@ -61,7 +62,7 @@ export default function Dashboard() {
       <div className="bg-white rounded-xl border border-gray-200 p-5">
         <h2 style={{ color: '#083e78' }} className="font-semibold mb-1">Quick actions</h2>
         <p className="text-gray-400 text-sm mb-4">What do you want to do today?</p>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {[
             { label: 'Add a student', href: '/students' },
             { label: 'Post a notice', href: '/notices' },

@@ -52,7 +52,7 @@ export default function ReportCardTemplate({ student, marks, examType, totalMark
     <Image src={CM_LOGO} style={{ width: 60, height: 60 }} />
     <View style={{ alignItems: 'center' }}>
       <Text style={styles.schoolName}>{schoolName || 'CM Public School'}</Text>
-      <Text style={styles.schoolSub}>CBSE Affiliated · New Delhi, India</Text>
+      <Text style={styles.schoolSub}>UP Board Affiliated · New Delhi, India</Text>
       <Text style={styles.paperTitle}>{examType} EXAMINATION — {subject?.toUpperCase()}</Text>
     </View>
   </View>

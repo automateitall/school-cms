@@ -28,12 +28,31 @@ export default function Settings() {
   const [settings, setSettings] = useState(null)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [uploadingPhoto, setUploadingPhoto] = useState(false)
 
   useEffect(() => {
     api.get('/settings').then(res => setSettings(res.data)).catch(console.error)
   }, [])
 
   const update = (key, value) => setSettings(prev => ({ ...prev, [key]: value }))
+
+  const handlePhotoUpload = async (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    setUploadingPhoto(true)
+    try {
+      const formData = new FormData()
+      formData.append('image', file)
+      const res = await api.post('/gallery/upload-single', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      })
+      update('principalPhoto', res.data.url)
+    } catch (err) {
+      alert('Photo upload failed. Please try again.')
+    } finally {
+      setUploadingPhoto(false)
+    }
+  }
 
   const handleSave = async () => {
     setSaving(true)
@@ -78,7 +97,7 @@ export default function Settings() {
         <Field label="School Hours" value={settings.schoolHours} onChange={v => update('schoolHours', v)} />
         <Field label="Working Days" value={settings.workingDays} onChange={v => update('workingDays', v)} />
         <Field label="Founded Year" value={settings.foundedYear} onChange={v => update('foundedYear', v)} />
-        <Field label="CBSE Eyebrow Badge" value={settings.cmSchoolEyebrow} onChange={v => update('cmSchoolEyebrow', v)} />
+        <Field label="UP Board Eyebrow Badge" value={settings.cmSchoolEyebrow} onChange={v => update('cmSchoolEyebrow', v)} />
       </Section>
 
       <Section title="Stats (shown on homepage and about page)">
@@ -159,6 +178,18 @@ export default function Settings() {
       </Section>
 
       <Section title="About Page">
+        <Field label="Principal's Name" value={settings.principalName} onChange={v => update('principalName', v)} />
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Principal's Photo</label>
+          <div className="flex items-center gap-3">
+            {settings.principalPhoto && (
+              <img src={settings.principalPhoto} alt="Principal" className="w-12 h-12 rounded-full object-cover border border-gray-200" />
+            )}
+            <input type="file" accept="image/*" onChange={handlePhotoUpload} disabled={uploadingPhoto}
+              className="text-xs text-gray-600 flex-1" />
+          </div>
+          {uploadingPhoto && <p className="text-xs text-gray-400 mt-1">Uploading...</p>}
+        </div>
         <Field label="Principal's Quote" value={settings.principalQuote} onChange={v => update('principalQuote', v)} full textarea />
         <Field label="Vision" value={settings.vision} onChange={v => update('vision', v)} full textarea />
         <Field label="Mission" value={settings.mission} onChange={v => update('mission', v)} full textarea />

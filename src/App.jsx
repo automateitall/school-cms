@@ -1,4 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { AuthProvider, useAuth } from './context/AuthContext'
+import ProtectedRoute from './components/ProtectedRoute'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Students from './pages/Students'
@@ -13,27 +15,37 @@ import Subjects from './pages/Subjects'
 import ExamTypes from './pages/ExamTypes'
 import Gallery from './pages/Gallery'
 
-function App() {
-  const token = localStorage.getItem('token')
+function AppRoutes() {
+  const { token } = useAuth()
 
   return (
+    <Routes>
+      <Route path="/login" element={<Login />} />
+      <Route element={<ProtectedRoute />}>
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/students" element={<Students />} />
+        <Route path="/notices" element={<Notices />} />
+        <Route path="/admissions" element={<Admissions />} />
+        <Route path="/attendance" element={<Attendance />} />
+        <Route path="/marks" element={<Marks />} />
+        <Route path="/report-card" element={<ReportCard />} />
+        <Route path="/question-paper" element={<QuestionPaper />} />
+        <Route path="/settings" element={<Settings />} />
+        <Route path="/subjects" element={<Subjects />} />
+        <Route path="/exam-types" element={<ExamTypes />} />
+        <Route path="/gallery" element={<Gallery />} />
+      </Route>
+      <Route path="*" element={<Navigate to={token ? '/dashboard' : '/login'} />} />
+    </Routes>
+  )
+}
+
+function App() {
+  return (
     <BrowserRouter>
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/dashboard" element={token ? <Dashboard /> : <Navigate to="/login" />} />
-        <Route path="/students" element={token ? <Students /> : <Navigate to="/login" />} />
-        <Route path="/notices" element={token ? <Notices /> : <Navigate to="/login" />} />
-        <Route path="/admissions" element={token ? <Admissions /> : <Navigate to="/login" />} />
-        <Route path="/attendance" element={token ? <Attendance /> : <Navigate to="/login" />} />
-        <Route path="/marks" element={token ? <Marks /> : <Navigate to="/login" />} />
-        <Route path="/report-card" element={token ? <ReportCard /> : <Navigate to="/login" />} />
-        <Route path="/question-paper" element={token ? <QuestionPaper /> : <Navigate to="/login" />} />
-        <Route path="*" element={<Navigate to={token ? "/dashboard" : "/login"} />} />
-        <Route path="/settings" element={token ? <Settings /> : <Navigate to="/login" />} />
-        <Route path="/subjects" element={token ? <Subjects /> : <Navigate to="/login" />} />
-        <Route path="/exam-types" element={token ? <ExamTypes /> : <Navigate to="/login" />} />
-        <Route path="/gallery" element={token ? <Gallery /> : <Navigate to="/login" />} />
-      </Routes>
+      <AuthProvider>
+        <AppRoutes />
+      </AuthProvider>
     </BrowserRouter>
   )
 }
