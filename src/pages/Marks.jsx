@@ -3,18 +3,22 @@ import Layout from '../components/layout/Layout'
 import api from '../lib/api'
 import { fetchClasses } from '../lib/classes'
 
+const pctColor = (pct) => pct >= 75 ? '#00bf63' : pct >= 50 ? '#f59e0b' : '#e53e3e'
+
 export default function Marks() {
-  const [students, setStudents] = useState([])
   const [classes, setClasses] = useState([])
-  const [selectedClass, setSelectedClass] = useState('')
-  const [examType, setExamType] = useState('')
-  const [subject, setSubject] = useState('')
-  const [maxMarks, setMaxMarks] = useState(100)
-  const [marks, setMarks] = useState({})
-  const [saved, setSaved] = useState(false)
-  const [loading, setLoading] = useState(false)
   const [examTypes, setExamTypes] = useState([])
+  const [selectedClass, setSelectedClass] = useState('')
+  const [selectedExamType, setSelectedExamType] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [loaded, setLoaded] = useState(false)
+
+  const [students, setStudents] = useState([])
   const [subjects, setSubjects] = useState([])
+  const [marksData, setMarksData] = useState({})
+  const [markIds, setMarkIds] = useState({})
+  const [editingRows, setEditingRows] = useState({})
+  const [savingRows, setSavingRows] = useState({})
 
   useEffect(() => {
     fetchClasses().then(setClasses)
@@ -24,53 +28,105 @@ export default function Marks() {
     api.get('/examtypes').then(r => setExamTypes(r.data)).catch(() => {})
   }, [])
 
-  useEffect(() => {
-    if (!selectedClass) return
-    api.get(`/subjects?class=${encodeURIComponent(selectedClass)}`).then(r => setSubjects(r.data)).catch(() => {})
-    setSubject('')
-  }, [selectedClass])
+  const selectedExamTypeObj = examTypes.find(et => et.name === selectedExamType)
+  const maxMarks = selectedExamTypeObj?.maxMarks || 0
 
-  useEffect(() => {
-    if (!selectedClass) return
-    const fetchStudents = async () => {
-      try {
-        const res = await api.get(`/students?class=${selectedClass}`)
-        setStudents(res.data)
-        const initial = {}
-        res.data.forEach(s => { initial[s.id] = '' })
-        setMarks(initial)
-        setSaved(false)
-      } catch (err) {
-        console.error(err)
-      }
-    }
-    fetchStudents()
-  }, [selectedClass])
-
-  const handleSubmit = async () => {
-    if (!subject) return alert('Please select a subject')
-    if (!examType) return alert('Please select an exam type')
+  const handleLoad = async () => {
+    if (!selectedClass || !selectedExamType) return alert('Select a class and exam type')
     setLoading(true)
+    setLoaded(false)
     try {
-      await Promise.all(
-        Object.entries(marks)
-          .filter(([, v]) => v !== '')
-          .map(([studentId, m]) =>
-            api.post('/marks', {
-              studentId,
-              subject,
-              examType,
-              marks: parseFloat(m),
-              maxMarks: parseFloat(maxMarks),
-              class: selectedClass
-            })
-          )
-      )
-      setSaved(true)
+      const [studentsRes, subjectsRes, marksRes] = await Promise.all([
+        api.get(`/students?class=${encodeURIComponent(selectedClass)}`),
+        api.get(`/subjects?class=${encodeURIComponent(selectedClass)}`),
+        api.get(`/marks?class=${encodeURIComponent(selectedClass)}&examType=${encodeURIComponent(selectedExamType)}`)
+      ])
+
+      const dataMap = {}
+      const idMap = {}
+      const editMap = {}
+
+      studentsRes.data.forEach(s => {
+        dataMap[s.id] = {}
+        idMap[s.id] = {}
+        subjectsRes.data.forEach(subj => { dataMap[s.id][subj.name] = '' })
+      })
+
+      marksRes.data.forEach(m => {
+        if (!dataMap[m.studentId]) return
+        dataMap[m.studentId][m.subject] = m.marks
+        idMap[m.studentId][m.subject] = m.id
+      })
+
+      studentsRes.data.forEach(s => {
+        editMap[s.id] = Object.keys(idMap[s.id]).length === 0
+      })
+
+      setStudents(studentsRes.data)
+      setSubjects(subjectsRes.data)
+      setMarksData(dataMap)
+      setMarkIds(idMap)
+      setEditingRows(editMap)
+      setLoaded(true)
     } catch (err) {
       console.error(err)
+      alert('Failed to load data')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleMarkChange = (studentId, subjectName, value) => {
+    setMarksData(prev => ({
+      ...prev,
+      [studentId]: { ...prev[studentId], [subjectName]: value }
+    }))
+  }
+
+  const rowTotal = (studentId) => {
+    const data = marksData[studentId] || {}
+    return subjects.reduce((sum, subj) => sum + (parseFloat(data[subj.name]) || 0), 0)
+  }
+
+  const handleEditRow = (studentId) => {
+    setEditingRows(prev => ({ ...prev, [studentId]: true }))
+  }
+
+  const handleSaveRow = async (studentId) => {
+    setSavingRows(prev => ({ ...prev, [studentId]: true }))
+    try {
+      const data = marksData[studentId] || {}
+      const ids = { ...(markIds[studentId] || {}) }
+
+      for (const subj of subjects) {
+        const value = data[subj.name]
+        if (value === '' || value === null || value === undefined) continue
+
+        if (ids[subj.name]) {
+          await api.put(`/marks/${ids[subj.name]}`, {
+            marks: parseFloat(value),
+            maxMarks
+          })
+        } else {
+          const res = await api.post('/marks', {
+            studentId,
+            subject: subj.name,
+            examType: selectedExamType,
+            marks: parseFloat(value),
+            maxMarks,
+            class: selectedClass
+          })
+          ids[subj.name] = res.data.mark.id
+        }
+      }
+
+      setMarkIds(prev => ({ ...prev, [studentId]: ids }))
+      setEditingRows(prev => ({ ...prev, [studentId]: false }))
+    } catch (err) {
+      console.error(err)
+      alert('Failed to save marks')
+    } finally {
+      setSavingRows(prev => ({ ...prev, [studentId]: false }))
     }
   }
 
@@ -84,10 +140,10 @@ export default function Marks() {
       </div>
 
       <div className="bg-white border border-gray-200 rounded-xl p-5 mb-5">
-        <div className="grid grid-cols-2 gap-4 mb-4">
+        <div className="grid grid-cols-3 gap-4 items-end">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Class</label>
-            <select value={selectedClass} onChange={e => setSelectedClass(e.target.value)}
+            <select value={selectedClass} onChange={e => { setSelectedClass(e.target.value); setLoaded(false) }}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none">
               <option value="">Select class</option>
               {classes.map(c => <option key={c} value={c}>{c}</option>)}
@@ -95,107 +151,114 @@ export default function Marks() {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Exam Type</label>
-            <select value={examType} onChange={e => {
-              setExamType(e.target.value)
-              const found = examTypes.find(et => et.name === e.target.value)
-              if (found) setMaxMarks(found.maxMarks)
-            }}
+            <select value={selectedExamType} onChange={e => { setSelectedExamType(e.target.value); setLoaded(false) }}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none">
               <option value="">Select exam type</option>
               {examTypes.map(e => <option key={e.id} value={e.name}>{e.name}</option>)}
             </select>
           </div>
-        </div>
-        <div className="grid grid-cols-3 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Subject</label>
-            <select value={subject} onChange={e => setSubject(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none">
-              <option value="">Select subject</option>
-              {subjects.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Maximum Marks</label>
-            <input type="number" value={maxMarks} onChange={e => setMaxMarks(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none" />
+            <button
+              onClick={handleLoad}
+              disabled={loading}
+              style={{ background: '#083e78' }}
+              className="text-white px-6 py-2 rounded-lg text-sm font-medium hover:opacity-90 transition disabled:opacity-50"
+            >
+              {loading ? 'Loading...' : 'Load'}
+            </button>
           </div>
         </div>
       </div>
 
-      {students.length > 0 && (
-        <>
-          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden mb-5">
-            <table className="w-full text-sm">
-              <thead style={{ background: '#f0f4fa' }}>
-                <tr>
-                  <th className="text-left px-4 py-3 text-gray-600 font-medium">Roll No</th>
-                  <th className="text-left px-4 py-3 text-gray-600 font-medium">Student Name</th>
-                  <th className="text-left px-4 py-3 text-gray-600 font-medium">Marks (out of {maxMarks})</th>
-                  <th className="text-left px-4 py-3 text-gray-600 font-medium">Percentage</th>
-                </tr>
-              </thead>
-              <tbody>
-                {students.map((s, i) => {
-                  const pct = marks[s.id] ? ((parseFloat(marks[s.id]) / maxMarks) * 100).toFixed(0) : '-'
-                  return (
-                    <tr key={s.id} style={{ background: i % 2 === 0 ? '#fff' : '#fafafa' }}
-                      className="border-t border-gray-100">
-                      <td className="px-4 py-3 text-gray-500">{s.rollNo}</td>
-                      <td className="px-4 py-3 font-medium text-gray-800">{s.name}</td>
-                      <td className="px-4 py-3">
+      {loaded && students.length > 0 && (
+        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead style={{ background: '#f0f4fa' }}>
+              <tr>
+                <th className="text-left px-4 py-3 text-gray-600 font-medium whitespace-nowrap">Roll No</th>
+                <th className="text-left px-4 py-3 text-gray-600 font-medium whitespace-nowrap">Name</th>
+                {subjects.map(subj => (
+                  <th key={subj.id} className="text-center px-4 py-3 text-gray-600 font-medium whitespace-nowrap">
+                    {subj.name} <span className="text-gray-400 font-normal">/{maxMarks}</span>
+                  </th>
+                ))}
+                <th className="text-center px-4 py-3 text-gray-600 font-medium whitespace-nowrap">Total</th>
+                <th className="text-center px-4 py-3 text-gray-600 font-medium whitespace-nowrap">Percentage</th>
+                <th className="text-center px-4 py-3 text-gray-600 font-medium whitespace-nowrap"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {students.map((s, i) => {
+                const editing = !!editingRows[s.id]
+                const saving = !!savingRows[s.id]
+                const total = rowTotal(s.id)
+                const maxTotal = subjects.length * maxMarks
+                const pct = maxTotal > 0 ? (total / maxTotal) * 100 : 0
+
+                return (
+                  <tr key={s.id} style={{ background: i % 2 === 0 ? '#fff' : '#fafafa' }}
+                    className="border-t border-gray-100">
+                    <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{s.rollNo}</td>
+                    <td className="px-4 py-3 font-medium text-gray-800 whitespace-nowrap">{s.name}</td>
+                    {subjects.map(subj => (
+                      <td key={subj.id} className="px-4 py-3 text-center">
                         <input
                           type="number"
                           min="0"
                           max={maxMarks}
-                          value={marks[s.id]}
-                          onChange={e => setMarks({ ...marks, [s.id]: e.target.value })}
-                          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-24 focus:outline-none"
-                          placeholder="0"
+                          value={marksData[s.id]?.[subj.name] ?? ''}
+                          disabled={!editing}
+                          onChange={e => handleMarkChange(s.id, subj.name, e.target.value)}
+                          className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm w-20 text-center focus:outline-none disabled:bg-gray-50 disabled:text-gray-400"
+                          placeholder="—"
                         />
                       </td>
-                      <td className="px-4 py-3">
-                        <span style={{
-                          color: pct >= 75 ? '#00bf63' : pct >= 50 ? '#f59e0b' : pct === '-' ? '#94a3b8' : '#e53e3e',
-                          fontWeight: '600'
-                        }}>
-                          {pct}{pct !== '-' ? '%' : ''}
-                        </span>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          {saved ? (
-            <div style={{ background: '#e6f9f0', color: '#00bf63' }}
-              className="rounded-xl p-4 text-center font-medium">
-              ✅ Marks saved successfully!
-            </div>
-          ) : (
-            <button
-              onClick={handleSubmit}
-              disabled={loading}
-              style={{ background: '#083e78' }}
-              className="w-full text-white py-3 rounded-xl text-sm font-medium hover:opacity-90 transition disabled:opacity-50"
-            >
-              {loading ? 'Saving...' : `Save Marks — ${examType || 'Select exam'} · ${subject || 'Select subject'}`}
-            </button>
-          )}
-        </>
+                    ))}
+                    <td className="px-4 py-3 text-center font-medium text-gray-700 whitespace-nowrap">
+                      {total}/{maxTotal}
+                    </td>
+                    <td className="px-4 py-3 text-center whitespace-nowrap">
+                      <span style={{ color: pctColor(pct), fontWeight: 600 }}>
+                        {maxTotal > 0 ? pct.toFixed(0) : 0}%
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-center whitespace-nowrap">
+                      {editing ? (
+                        <button
+                          onClick={() => handleSaveRow(s.id)}
+                          disabled={saving}
+                          style={{ background: '#083e78' }}
+                          className="text-white px-3 py-1.5 rounded text-xs font-medium hover:opacity-90 disabled:opacity-50"
+                        >
+                          {saving ? 'Saving...' : 'Save'}
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleEditRow(s.id)}
+                          style={{ background: '#e8f0fb', color: '#083e78' }}
+                          className="px-3 py-1.5 rounded text-xs font-medium hover:opacity-80"
+                        >
+                          Edit
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
 
-      {selectedClass && students.length === 0 && (
+      {loaded && students.length === 0 && (
         <div className="bg-white border border-gray-200 rounded-xl p-12 text-center text-gray-400">
           No students found in Class {selectedClass}.
         </div>
       )}
 
-      {!selectedClass && (
+      {!loaded && (
         <div className="bg-white border border-gray-200 rounded-xl p-12 text-center text-gray-400">
-          Select a class to enter marks.
+          Select a class and exam type, then click Load.
         </div>
       )}
     </Layout>
