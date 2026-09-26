@@ -7,7 +7,7 @@ export default function Notices() {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({
-    title: '', content: '', school: 'CMP', pinned: false
+    title: '', content: '', pinned: false
   })
 
   const fetchNotices = async () => {
@@ -28,7 +28,7 @@ export default function Notices() {
     try {
       await api.post('/notices', form)
       setShowForm(false)
-      setForm({ title: '', content: '', school: 'CMP', pinned: false })
+      setForm({ title: '', content: '', pinned: false })
       fetchNotices()
     } catch (err) {
       console.error(err)
@@ -85,28 +85,15 @@ export default function Notices() {
                 required
               />
             </div>
-            <div className="flex gap-4">
-              <div className="flex-1">
-                <label className="block text-sm font-medium text-gray-700 mb-1">School</label>
-                <select
-                  value={form.school}
-                  onChange={(e) => setForm({ ...form, school: e.target.value })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none"
-                >
-                  <option value="CMP">CM Public School</option>
-                  <option value="TZP">Taare Zameen Par</option>
-                </select>
-              </div>
-              <div className="flex items-end gap-2 pb-2">
-                <input
-                  type="checkbox"
-                  id="pinned"
-                  checked={form.pinned}
-                  onChange={(e) => setForm({ ...form, pinned: e.target.checked })}
-                  className="w-4 h-4"
-                />
-                <label htmlFor="pinned" className="text-sm text-gray-700">Pin this notice</label>
-              </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="pinned"
+                checked={form.pinned}
+                onChange={(e) => setForm({ ...form, pinned: e.target.checked })}
+                className="w-4 h-4"
+              />
+              <label htmlFor="pinned" className="text-sm text-gray-700">Pin this notice</label>
             </div>
             <button
               type="submit"

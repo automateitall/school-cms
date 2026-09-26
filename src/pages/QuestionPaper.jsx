@@ -20,7 +20,6 @@ export default function QuestionPaper() {
     date: new Date().toLocaleDateString('en-IN'),
     time: '3 Hours',
     maxMarks: '100',
-    school: 'CMP',
   })
   const [sections, setSections] = useState([defaultSection()])
   const [ready, setReady] = useState(false)
@@ -52,7 +51,6 @@ export default function QuestionPaper() {
         subject: paperData.subject,
         class: paperData.className,
         examType: paperData.examType,
-        school: paperData.school,
         maxMarks: paperData.maxMarks,
         time: paperData.time,
         date: paperData.date,
@@ -81,7 +79,6 @@ export default function QuestionPaper() {
       date: paper.date,
       time: paper.time,
       maxMarks: paper.maxMarks,
-      school: paper.school,
     })
     setSections(paper.sections)
     setReady(false)
@@ -108,7 +105,6 @@ export default function QuestionPaper() {
       date: new Date().toLocaleDateString('en-IN'),
       time: '3 Hours',
       maxMarks: '100',
-      school: 'CMP',
     })
     setSections([defaultSection()])
     setReady(false)
@@ -179,7 +175,7 @@ export default function QuestionPaper() {
           <table className="w-full text-sm">
             <thead style={{ background: '#f0f4fa' }}>
               <tr>
-                {['Title', 'Subject', 'Class', 'Exam Type', 'School', 'Max Marks', 'Date', ''].map(h => (
+                {['Title', 'Subject', 'Class', 'Exam Type', 'Max Marks', 'Date', ''].map(h => (
                   <th key={h} className="text-left px-4 py-3 text-gray-600 font-medium">{h}</th>
                 ))}
               </tr>
@@ -192,14 +188,6 @@ export default function QuestionPaper() {
                   <td className="px-4 py-3 text-gray-600">{p.subject}</td>
                   <td className="px-4 py-3 text-gray-600">Class {p.class}</td>
                   <td className="px-4 py-3 text-gray-600">{p.examType}</td>
-                  <td className="px-4 py-3">
-                    <span style={{
-                      background: p.school === 'CMP' ? '#e8f0fb' : '#fff3ec',
-                      color: p.school === 'CMP' ? '#083e78' : '#ff914d'
-                    }} className="px-2 py-1 rounded text-xs font-bold">
-                      {p.school}
-                    </span>
-                  </td>
                   <td className="px-4 py-3 text-gray-600">{p.maxMarks}</td>
                   <td className="px-4 py-3 text-gray-400 text-xs">{p.date}</td>
                   <td className="px-4 py-3">
@@ -295,15 +283,6 @@ export default function QuestionPaper() {
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none" />
                 </div>
               ))}
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">School</label>
-                <select value={paperData.school}
-                  onChange={e => { setPaperData({ ...paperData, school: e.target.value }); setReady(false) }}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none">
-                  <option value="CMP">CM Public School</option>
-                  <option value="TZP">Taare Zameen Par</option>
-                </select>
-              </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Subject</label>
                 <select value={paperData.subject}

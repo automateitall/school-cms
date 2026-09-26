@@ -10,7 +10,6 @@ export default function Gallery() {
   const [uploading, setUploading] = useState(false)
   const [title, setTitle] = useState('')
   const [category, setCategory] = useState('General')
-  const [school, setSchool] = useState('CMP')
   const [file, setFile] = useState([])
   const [preview, setPreview] = useState([])
   const [filterCategory, setFilterCategory] = useState('All')
@@ -41,7 +40,6 @@ export default function Gallery() {
       file.forEach(f => formData.append('images', f))
       formData.append('title', title)
       formData.append('category', category)
-      formData.append('school', school)
       await api.post('/gallery', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       })
@@ -95,15 +93,7 @@ export default function Gallery() {
               {CATEGORIES.map(c => <option key={c}>{c}</option>)}
             </select>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">School</label>
-            <select value={school} onChange={e => setSchool(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none">
-              <option value="CMP">CM Public School</option>
-              <option value="TZP">Taare Zameen Par</option>
-            </select>
-          </div>
-          <div>
+          <div className="col-span-2">
             <label className="block text-sm font-medium text-gray-700 mb-1">Photo *</label>
             <input type="file" accept="image/*" multiple onChange={handleFileChange}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none" />
