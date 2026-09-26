@@ -87,7 +87,8 @@ export default function PrintReportCard() {
         subjectsRes.data.forEach(subj => { marksMap[subj.name] = {} })
         marksResults.forEach((res, idx) => {
           const examName = groupNames[idx]
-          res.data.forEach(m => {
+          res.data?.forEach(m => {
+            if (!m?.subject) return
             if (!marksMap[m.subject]) marksMap[m.subject] = {}
             marksMap[m.subject][examName] = m.marks
           })
@@ -101,7 +102,7 @@ export default function PrintReportCard() {
           )
           const totals = studentsRes.data.map((s, idx) => ({
             studentId: s.id,
-            total: classmateMarksRes[idx].data.reduce((sum, m) => sum + m.marks, 0)
+            total: (classmateMarksRes[idx]?.data || []).reduce((sum, m) => sum + (m?.marks || 0), 0)
           }))
           totals.sort((a, b) => b.total - a.total)
           const position = totals.findIndex(t => t.studentId === studentId) + 1
@@ -127,14 +128,19 @@ export default function PrintReportCard() {
   }, [studentId, examTypeParam])
 
   if (loading) {
-    return <div style={{ padding: 40, textAlign: 'center', color: '#94a3b8', fontFamily: 'Arial, sans-serif' }}>Loading report card...</div>
+    return <div style={{ padding: '2rem', textAlign: 'center', color: '#94a3b8', fontFamily: 'Arial, sans-serif' }}>Loading report card...</div>
   }
 
   if (!student) {
-    return <div style={{ padding: 40, textAlign: 'center', color: '#94a3b8', fontFamily: 'Arial, sans-serif' }}>Student not found.</div>
+    return <div style={{ padding: '2rem', textAlign: 'center', color: '#94a3b8', fontFamily: 'Arial, sans-serif' }}>Student not found.</div>
   }
 
-  const isCMP = student.school !== 'TZP'
+  if (!examTypes.length) {
+    return <div style={{ padding: '2rem', textAlign: 'center', color: '#94a3b8', fontFamily: 'Arial, sans-serif' }}>Loading report card...</div>
+  }
+
+  const isCMP = student?.school !== 'TZP'
+  const schoolName = student?.school === 'TZP' ? 'Taare Zameen Par Play School' : 'CM Public School'
   const theme = isCMP ? {
     logo: '/logo-cm.svg',
     schoolName: 'CM PUBLIC SCHOOL',
@@ -217,7 +223,7 @@ export default function PrintReportCard() {
       <div className="rc" style={{ maxWidth: 800, margin: '0 auto', padding: 24, background: 'white', border: '1px solid #e2e8f0', boxShadow: '0 1px 4px rgba(0,0,0,0.05)', color: '#1e293b' }}>
 
         <div style={{ textAlign: 'center', paddingBottom: 12, borderBottom: theme.headerBorder, marginBottom: 16 }}>
-          <img src={theme.logo} alt={theme.schoolName} style={{ height: 60, margin: '0 auto 6px' }} />
+          <img src={theme.logo} alt={schoolName} style={{ height: 60, margin: '0 auto 6px' }} />
           <div style={{ fontSize: 20, fontWeight: 500, color: theme.schoolNameColor }}>{theme.schoolName}</div>
           <div style={{ fontSize: 12, color: '#64748b' }}>CC Road, Deoria, Uttar Pradesh</div>
           <div style={{ fontSize: 11, color: '#64748b' }}>UP Board Affiliated | English Medium</div>
@@ -227,11 +233,11 @@ export default function PrintReportCard() {
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', padding: 10, background: '#f8fafc', border: '0.5px solid #e2e8f0', borderRadius: 4, marginBottom: 16, rowGap: 8, columnGap: 16, fontSize: 13 }}>
-          <div><strong>Student Name:</strong> {student.name}</div>
-          <div><strong>Roll No:</strong> {student.rollNo}</div>
-          <div><strong>Class & Section:</strong> {student.class}{student.section ? ` - ${student.section}` : ''}</div>
-          <div><strong>Father's Name:</strong> {student.parentName || '—'}</div>
-          <div><strong>Mother's Name:</strong> {student.motherName || '—'}</div>
+          <div><strong>Student Name:</strong> {student?.name}</div>
+          <div><strong>Roll No:</strong> {student?.rollNo}</div>
+          <div><strong>Class & Section:</strong> {student?.class}{student?.section ? ` - ${student.section}` : ''}</div>
+          <div><strong>Father's Name:</strong> {student?.parentName || '—'}</div>
+          <div><strong>Mother's Name:</strong> {student?.motherName || '—'}</div>
           <div>
             <strong>Result:</strong>{' '}
             <span style={{
@@ -245,7 +251,7 @@ export default function PrintReportCard() {
         </div>
 
         {subjects.length === 0 ? (
-          <p style={{ textAlign: 'center', color: '#94a3b8', padding: '24px 0' }}>No subjects configured for Class {student.class}.</p>
+          <p style={{ textAlign: 'center', color: '#94a3b8', padding: '24px 0' }}>No subjects configured for Class {student?.class}.</p>
         ) : (
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, marginBottom: 14 }}>
             <thead>
