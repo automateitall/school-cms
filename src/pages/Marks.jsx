@@ -7,7 +7,6 @@ export default function Marks() {
   const [students, setStudents] = useState([])
   const [classes, setClasses] = useState([])
   const [selectedClass, setSelectedClass] = useState('')
-  const [selectedSchool, setSelectedSchool] = useState('CMP')
   const [examType, setExamType] = useState('')
   const [subject, setSubject] = useState('')
   const [maxMarks, setMaxMarks] = useState(100)
@@ -35,7 +34,7 @@ export default function Marks() {
     if (!selectedClass) return
     const fetchStudents = async () => {
       try {
-        const res = await api.get(`/students?school=${selectedSchool}&class=${selectedClass}`)
+        const res = await api.get(`/students?class=${selectedClass}`)
         setStudents(res.data)
         const initial = {}
         res.data.forEach(s => { initial[s.id] = '' })
@@ -46,7 +45,7 @@ export default function Marks() {
       }
     }
     fetchStudents()
-  }, [selectedClass, selectedSchool])
+  }, [selectedClass])
 
   const handleSubmit = async () => {
     if (!subject) return alert('Please select a subject')
@@ -63,7 +62,6 @@ export default function Marks() {
               examType,
               marks: parseFloat(m),
               maxMarks: parseFloat(maxMarks),
-              school: selectedSchool,
               class: selectedClass
             })
           )
@@ -86,15 +84,7 @@ export default function Marks() {
       </div>
 
       <div className="bg-white border border-gray-200 rounded-xl p-5 mb-5">
-        <div className="grid grid-cols-3 gap-4 mb-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">School</label>
-            <select value={selectedSchool} onChange={e => setSelectedSchool(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none">
-              <option value="CMP">CM Public School</option>
-              <option value="TZP">Taare Zameen Par</option>
-            </select>
-          </div>
+        <div className="grid grid-cols-2 gap-4 mb-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Class</label>
             <select value={selectedClass} onChange={e => setSelectedClass(e.target.value)}
@@ -205,7 +195,7 @@ export default function Marks() {
 
       {!selectedClass && (
         <div className="bg-white border border-gray-200 rounded-xl p-12 text-center text-gray-400">
-          Select a school and class to enter marks.
+          Select a class to enter marks.
         </div>
       )}
     </Layout>

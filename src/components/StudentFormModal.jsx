@@ -2,11 +2,9 @@ import { useEffect, useState } from 'react'
 import api from '../lib/api'
 import { fetchClasses } from '../lib/classes'
 
-const TZP_CLASSES = ['Play Group', 'Nursery', 'LKG', 'UKG']
-
 const emptyForm = {
   name: '', rollNo: '', class: '', section: '',
-  school: 'CMP', parentName: '', parentPhone: '', address: ''
+  parentName: '', parentPhone: '', address: ''
 }
 
 export default function StudentFormModal({ student, onClose, onSaved }) {
@@ -16,7 +14,6 @@ export default function StudentFormModal({ student, onClose, onSaved }) {
     rollNo: student.rollNo || '',
     class: student.class || '',
     section: student.section || '',
-    school: student.school || 'CMP',
     parentName: student.parentName || '',
     parentPhone: student.parentPhone || '',
     address: student.address || '',
@@ -25,15 +22,6 @@ export default function StudentFormModal({ student, onClose, onSaved }) {
   const [error, setError] = useState('')
 
   useEffect(() => { fetchClasses().then(setClasses) }, [])
-
-  const availableClasses = form.school === 'TZP' ? TZP_CLASSES : classes
-
-  const handleSchoolChange = (school) => {
-    setForm(prev => {
-      const nextClasses = school === 'TZP' ? TZP_CLASSES : classes
-      return { ...prev, school, class: nextClasses.includes(prev.class) ? prev.class : '' }
-    })
-  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -83,19 +71,11 @@ export default function StudentFormModal({ student, onClose, onSaved }) {
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none" required />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">School</label>
-            <select value={form.school} onChange={e => handleSchoolChange(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none">
-              <option value="CMP">CM Public School</option>
-              <option value="TZP">Taare Zameen Par</option>
-            </select>
-          </div>
-          <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Class</label>
             <select value={form.class} onChange={e => setForm({ ...form, class: e.target.value })}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none" required>
               <option value="">Select class</option>
-              {availableClasses.map(c => <option key={c} value={c}>{c}</option>)}
+              {classes.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
           <div>

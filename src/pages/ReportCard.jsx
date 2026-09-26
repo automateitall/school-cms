@@ -9,7 +9,6 @@ export default function ReportCard() {
   const [students, setStudents] = useState([])
   const [classes, setClasses] = useState([])
   const [selectedClass, setSelectedClass] = useState('')
-  const [selectedSchool, setSelectedSchool] = useState('CMP')
   const [examType, setExamType] = useState('Unit Test 1')
   const [reports, setReports] = useState({})
   const [loading, setLoading] = useState(false)
@@ -23,7 +22,7 @@ export default function ReportCard() {
     if (!selectedClass) return alert('Select a class first')
     setLoading(true)
     try {
-      const studRes = await api.get(`/students?school=${selectedSchool}&class=${selectedClass}`)
+      const studRes = await api.get(`/students?class=${selectedClass}`)
       setStudents(studRes.data)
       const reportData = {}
       await Promise.all(
@@ -49,15 +48,7 @@ export default function ReportCard() {
       </div>
 
       <div className="bg-white border border-gray-200 rounded-xl p-5 mb-5">
-        <div className="grid grid-cols-3 gap-4 mb-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">School</label>
-            <select value={selectedSchool} onChange={e => { setSelectedSchool(e.target.value); setGenerated(false) }}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none">
-              <option value="CMP">CM Public School</option>
-              <option value="TZP">Taare Zameen Par</option>
-            </select>
-          </div>
+        <div className="grid grid-cols-2 gap-4 mb-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Class</label>
             <select value={selectedClass} onChange={e => { setSelectedClass(e.target.value); setGenerated(false) }}
