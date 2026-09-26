@@ -334,9 +334,11 @@ export default function PrintReportCard() {
             <div>Ph: +91 90444 40703 / 80907 80057</div>
           </div>
           <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '11px', fontWeight: 'bold', color: isCMP ? '#083e78' : '#c45e1e' }}>
-              {isCMP ? 'UP Board Affiliated · English Medium' : 'Play School · Age 2–6'}
-            </div>
+            {isCMP && (
+              <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#083e78' }}>
+                UP Board Affiliated · English Medium
+              </div>
+            )}
             <div style={{ fontSize: '9px', color: '#888', fontStyle: 'italic', marginTop: '2px' }}>
               "Nurturing minds, building futures"
             </div>
