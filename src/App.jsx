@@ -4,6 +4,7 @@ import ProtectedRoute from './components/ProtectedRoute'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Students from './pages/Students'
+import StudentProfile from './pages/StudentProfile'
 import Notices from './pages/Notices'
 import Admissions from './pages/Admissions'
 import Attendance from './pages/Attendance'
@@ -24,6 +25,7 @@ function AppRoutes() {
       <Route element={<ProtectedRoute />}>
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/students" element={<Students />} />
+        <Route path="/students/:id" element={<StudentProfile />} />
         <Route path="/notices" element={<Notices />} />
         <Route path="/admissions" element={<Admissions />} />
         <Route path="/attendance" element={<Attendance />} />

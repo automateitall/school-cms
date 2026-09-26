@@ -1,18 +1,15 @@
-import { fetchClasses } from '../lib/classes'
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import Layout from '../components/layout/Layout'
 import api from '../lib/api'
-
+import StudentFormModal from '../components/StudentFormModal'
 
 export default function Students() {
   const [students, setStudents] = useState([])
-  const [classes, setClasses] = useState([])
   const [loading, setLoading] = useState(true)
-  const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({
-    name: '', rollNo: '', class: '', section: '',
-    school: 'CMP', parentName: '', parentPhone: '', address: ''
-  })
+  const [showModal, setShowModal] = useState(false)
+  const [editingStudent, setEditingStudent] = useState(null)
+  const navigate = useNavigate()
 
   const fetchStudents = async () => {
     try {
@@ -26,22 +23,6 @@ export default function Students() {
   }
 
   useEffect(() => { fetchStudents() }, [])
-  useEffect(() => {
-  fetchClasses().then(setClasses)
-}, [])
-
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    try {
-      await api.post('/students', form)
-      setShowForm(false)
-      setForm({ name: '', rollNo: '', class: '', section: '',
-        school: 'CMP', parentName: '', parentPhone: '', address: '' })
-      fetchStudents()
-    } catch (err) {
-      console.error(err)
-    }
-  }
 
   const handleDelete = async (id) => {
     if (!confirm('Delete this student?')) return
@@ -53,6 +34,16 @@ export default function Students() {
     }
   }
 
+  const openAddModal = () => {
+    setEditingStudent(null)
+    setShowModal(true)
+  }
+
+  const openEditModal = (student) => {
+    setEditingStudent(student)
+    setShowModal(true)
+  }
+
   return (
     <Layout>
       <div className="flex items-center justify-between mb-6">
@@ -61,73 +52,20 @@ export default function Students() {
           <p className="text-gray-500 text-sm mt-1">{students.length} students enrolled</p>
         </div>
         <button
-          onClick={() => setShowForm(!showForm)}
+          onClick={openAddModal}
           style={{ background: '#083e78' }}
           className="text-white px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90 transition"
         >
-          {showForm ? 'Cancel' : '+ Add Student'}
+          + Add Student
         </button>
       </div>
 
-      {showForm && (
-        <div className="bg-white border border-gray-200 rounded-xl p-6 mb-6">
-          <h2 style={{ color: '#083e78' }} className="font-semibold mb-4">New Student</h2>
-          <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-4">
-            {[
-              { label: 'Full Name', key: 'name', type: 'text' },
-              { label: 'Roll No', key: 'rollNo', type: 'text' },
-              { label: 'Section', key: 'section', type: 'text' },
-              { label: 'Parent Name', key: 'parentName', type: 'text' },
-              { label: 'Parent Phone', key: 'parentPhone', type: 'text' },
-              { label: 'Address', key: 'address', type: 'text' },
-            ].map(field => (
-              <div key={field.key}>
-                <label className="block text-sm font-medium text-gray-700 mb-1">{field.label}</label>
-                <input
-                  type={field.type}
-                  value={form[field.key]}
-                  onChange={(e) => setForm({ ...form, [field.key]: e.target.value })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2"
-                  required
-                />
-              </div>
-            ))}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Class</label>
-              <select
-                value={form['class']}
-                onChange={(e) => setForm({ ...form, class: e.target.value })}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none"
-                required
-              >
-                <option value="">Select class</option>
-                {classes.map(c => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">School</label>
-              <select
-                value={form.school}
-                onChange={(e) => setForm({ ...form, school: e.target.value })}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none"
-              >
-                <option value="CMP">CM Public School</option>
-                <option value="TZP">Taare Zameen Par</option>
-              </select>
-            </div>
-            <div className="col-span-2">
-              <button
-                type="submit"
-                style={{ background: '#083e78' }}
-                className="text-white px-6 py-2 rounded-lg text-sm font-medium hover:opacity-90 transition"
-              >
-                Save Student
-              </button>
-            </div>
-          </form>
-        </div>
+      {showModal && (
+        <StudentFormModal
+          student={editingStudent}
+          onClose={() => setShowModal(false)}
+          onSaved={() => fetchStudents()}
+        />
       )}
 
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
@@ -151,7 +89,7 @@ export default function Students() {
                   <td className="px-4 py-3 font-medium text-gray-800">{s.name}</td>
                   <td className="px-4 py-3 text-gray-600">{s.rollNo}</td>
                   <td className="px-4 py-3 text-gray-600">{s.class}</td>
-                  <td className="px-4 py-3 text-gray-600">{s.section}</td>
+                  <td className="px-4 py-3 text-gray-600">{s.section || '—'}</td>
                   <td className="px-4 py-3">
                     <span style={{
                       background: s.school === 'CMP' ? '#e8f0fb' : '#fff3ec',
@@ -163,10 +101,20 @@ export default function Students() {
                   <td className="px-4 py-3 text-gray-600">{s.parentName}</td>
                   <td className="px-4 py-3 text-gray-600">{s.parentPhone}</td>
                   <td className="px-4 py-3">
-                    <button onClick={() => handleDelete(s.id)}
-                      className="text-red-400 hover:text-red-600 text-xs transition">
-                      Delete
-                    </button>
+                    <div className="flex gap-3">
+                      <button onClick={() => navigate(`/students/${s.id}`)}
+                        className="text-blue-500 hover:text-blue-700 text-xs transition">
+                        View
+                      </button>
+                      <button onClick={() => openEditModal(s)}
+                        className="text-amber-500 hover:text-amber-700 text-xs transition">
+                        Edit
+                      </button>
+                      <button onClick={() => handleDelete(s.id)}
+                        className="text-red-400 hover:text-red-600 text-xs transition">
+                        Delete
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
