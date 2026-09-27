@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import Layout from '../components/layout/Layout'
 import api from '../lib/api'
 import StudentFormModal from '../components/StudentFormModal'
+import { SkeletonBlock, rowBg } from '../components/Skeleton'
 
 const COLUMNS = ['Name', 'Roll No', 'Class', 'Section', 'School', 'Status', 'Parent', 'Phone', '']
 
@@ -15,10 +16,10 @@ const STATUS_BADGE = {
 
 function SkeletonRow({ index }) {
   return (
-    <tr style={{ background: index % 2 === 0 ? '#fff' : '#fafafa' }} className="border-t border-gray-100">
+    <tr style={{ background: rowBg(index) }} className="border-t border-gray-100">
       {COLUMNS.map((_, i) => (
         <td key={i} className="px-4 py-3">
-          <div className="h-4 bg-gray-200 rounded animate-pulse" style={{ width: i === COLUMNS.length - 1 ? '60px' : '80%' }} />
+          <SkeletonBlock width={i === COLUMNS.length - 1 ? '60px' : '80%'} />
         </td>
       ))}
     </tr>
