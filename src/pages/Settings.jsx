@@ -29,6 +29,9 @@ export default function Settings() {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
+  const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' })
+  const [changingPassword, setChangingPassword] = useState(false)
+  const [passwordMessage, setPasswordMessage] = useState(null)
 
   useEffect(() => {
     api.get('/settings').then(res => setSettings(res.data)).catch(console.error)
@@ -64,6 +67,30 @@ export default function Settings() {
       console.error(err)
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleChangePassword = async (e) => {
+    e.preventDefault()
+    setPasswordMessage(null)
+
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setPasswordMessage({ type: 'error', text: 'New password and confirmation do not match.' })
+      return
+    }
+
+    setChangingPassword(true)
+    try {
+      await api.put('/auth/change-password', {
+        currentPassword: passwordForm.currentPassword,
+        newPassword: passwordForm.newPassword,
+      })
+      setPasswordMessage({ type: 'success', text: 'Password updated successfully.' })
+      setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' })
+    } catch (err) {
+      setPasswordMessage({ type: 'error', text: err.response?.data?.message || 'Failed to update password.' })
+    } finally {
+      setChangingPassword(false)
     }
   }
 
@@ -196,6 +223,45 @@ export default function Settings() {
         <Field label="Mission" value={settings.mission} onChange={v => update('mission', v)} full textarea />
         <Field label="Values" value={settings.values} onChange={v => update('values', v)} full textarea />
       </Section>
+
+      <div className="bg-white border border-gray-200 rounded-xl p-5 mb-5">
+        <h2 style={{ color: '#083e78' }} className="font-semibold text-sm mb-4 pb-3 border-b border-gray-100">Change Password</h2>
+        <form onSubmit={handleChangePassword} className="grid grid-cols-2 gap-4 max-w-xl">
+          <div className="col-span-2">
+            <label className="block text-xs font-medium text-gray-600 mb-1">Current Password</label>
+            <input type="password" value={passwordForm.currentPassword}
+              onChange={e => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none" required />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">New Password</label>
+            <input type="password" value={passwordForm.newPassword}
+              onChange={e => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none" required minLength={6} />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Confirm New Password</label>
+            <input type="password" value={passwordForm.confirmPassword}
+              onChange={e => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none" required minLength={6} />
+          </div>
+          {passwordMessage && (
+            <div className="col-span-2">
+              <p className={`text-sm ${passwordMessage.type === 'success' ? '' : 'text-red-500'}`}
+                style={passwordMessage.type === 'success' ? { color: '#00bf63' } : undefined}>
+                {passwordMessage.type === 'success' ? '✅ ' : ''}{passwordMessage.text}
+              </p>
+            </div>
+          )}
+          <div className="col-span-2">
+            <button type="submit" disabled={changingPassword}
+              style={{ background: '#083e78' }}
+              className="text-white px-5 py-2.5 rounded-lg text-sm font-medium hover:opacity-90 transition disabled:opacity-50">
+              {changingPassword ? 'Updating...' : 'Update Password'}
+            </button>
+          </div>
+        </form>
+      </div>
     </Layout>
   )
 }

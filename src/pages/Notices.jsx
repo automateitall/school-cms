@@ -12,7 +12,7 @@ export default function Notices() {
 
   const fetchNotices = async () => {
     try {
-      const res = await api.get('/notices')
+      const res = await api.get('/notices?all=true')
       setNotices(res.data)
     } catch (err) {
       console.error(err)
@@ -39,6 +39,15 @@ export default function Notices() {
     if (!confirm('Delete this notice?')) return
     try {
       await api.delete(`/notices/${id}`)
+      fetchNotices()
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
+  const handleToggle = async (id) => {
+    try {
+      await api.put(`/notices/${id}/toggle`)
       fetchNotices()
     } catch (err) {
       console.error(err)
@@ -129,6 +138,12 @@ export default function Notices() {
                     }} className="text-xs px-2 py-0.5 rounded font-medium">
                       {n.school === 'CMP' ? 'CM Public' : 'TZP'}
                     </span>
+                    <span style={{
+                      background: n.active ? '#e6f9f0' : '#f1f5f9',
+                      color: n.active ? '#00bf63' : '#64748b'
+                    }} className="text-xs px-2 py-0.5 rounded font-medium">
+                      {n.active ? 'Active' : 'Inactive'}
+                    </span>
                   </div>
                   <h3 className="font-semibold text-gray-800">{n.title}</h3>
                   <p className="text-gray-500 text-sm mt-1">{n.content}</p>
@@ -138,10 +153,20 @@ export default function Notices() {
                     })}
                   </p>
                 </div>
-                <button onClick={() => handleDelete(n.id)}
-                  className="text-red-400 hover:text-red-600 text-xs ml-4 transition">
-                  Delete
-                </button>
+                <div className="flex flex-col items-end gap-2 ml-4">
+                  <button onClick={() => handleToggle(n.id)}
+                    style={{
+                      background: n.active ? '#f1f5f9' : '#e6f9f0',
+                      color: n.active ? '#64748b' : '#00bf63'
+                    }}
+                    className="px-3 py-1.5 rounded text-xs font-medium hover:opacity-80 transition">
+                    {n.active ? 'Deactivate' : 'Activate'}
+                  </button>
+                  <button onClick={() => handleDelete(n.id)}
+                    className="text-red-400 hover:text-red-600 text-xs transition">
+                    Delete
+                  </button>
+                </div>
               </div>
             </div>
           ))

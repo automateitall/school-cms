@@ -17,6 +17,7 @@ import Settings from './pages/Settings'
 import Subjects from './pages/Subjects'
 import ExamTypes from './pages/ExamTypes'
 import Gallery from './pages/Gallery'
+import YearEnd from './pages/YearEnd'
 
 function AppRoutes() {
   const { token } = useAuth()
@@ -40,6 +41,7 @@ function AppRoutes() {
         <Route path="/subjects" element={<Subjects />} />
         <Route path="/exam-types" element={<ExamTypes />} />
         <Route path="/gallery" element={<Gallery />} />
+        <Route path="/year-end" element={<YearEnd />} />
       </Route>
       <Route path="*" element={<Navigate to={token ? '/dashboard' : '/login'} />} />
     </Routes>

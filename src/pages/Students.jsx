@@ -4,7 +4,14 @@ import Layout from '../components/layout/Layout'
 import api from '../lib/api'
 import StudentFormModal from '../components/StudentFormModal'
 
-const COLUMNS = ['Name', 'Roll No', 'Class', 'Section', 'School', 'Parent', 'Phone', '']
+const COLUMNS = ['Name', 'Roll No', 'Class', 'Section', 'School', 'Status', 'Parent', 'Phone', '']
+
+const STATUS_BADGE = {
+  Active: { bg: '#e6f9f0', color: '#00bf63' },
+  Transferred: { bg: '#fff3ec', color: '#c45e1e' },
+  PassedOut: { bg: '#f1f5f9', color: '#64748b' },
+  Inactive: { bg: '#ffeaea', color: '#e53e3e' },
+}
 
 function SkeletonRow({ index }) {
   return (
@@ -26,11 +33,13 @@ export default function Students() {
   const [classes, setClasses] = useState([])
   const [selectedClass, setSelectedClass] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
+  const [showAll, setShowAll] = useState(false)
   const navigate = useNavigate()
 
-  const fetchStudents = async () => {
+  const fetchStudents = async (all = showAll) => {
+    setLoading(true)
     try {
-      const res = await api.get('/students')
+      const res = await api.get(`/students?status=${all ? 'all' : 'Active'}`)
       setStudents(res.data)
     } catch (err) {
       console.error(err)
@@ -49,9 +58,12 @@ export default function Students() {
   }
 
   useEffect(() => {
-    fetchStudents()
     fetchClasses()
   }, [])
+
+  useEffect(() => {
+    fetchStudents(showAll)
+  }, [showAll])
 
   const handleDelete = async (id) => {
     if (!confirm('Delete this student?')) return
@@ -127,6 +139,10 @@ export default function Students() {
           className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 flex-1 max-w-xs focus:outline-none focus:ring-2"
           style={{ '--tw-ring-color': '#083e78' }}
         />
+        <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
+          <input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} className="w-4 h-4" />
+          Show all (incl. inactive)
+        </label>
       </div>
 
       {showModal && (
@@ -180,6 +196,14 @@ export default function Students() {
                       color: s.school === 'CMP' ? '#083e78' : '#ff914d'
                     }} className="px-2 py-1 rounded-md text-xs font-medium">
                       {s.school === 'CMP' ? 'CM Public' : 'TZP'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span style={{
+                      background: STATUS_BADGE[s.status]?.bg || '#f1f5f9',
+                      color: STATUS_BADGE[s.status]?.color || '#64748b'
+                    }} className="px-2 py-1 rounded-md text-xs font-medium">
+                      {s.status || 'Active'}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-gray-600">{s.parentName}</td>

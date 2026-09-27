@@ -4,8 +4,10 @@ import { fetchClasses } from '../lib/classes'
 
 const emptyForm = {
   name: '', rollNo: '', class: '', section: '',
-  parentName: '', parentPhone: '', address: ''
+  parentName: '', parentPhone: '', motherName: '', address: ''
 }
+
+const STATUS_OPTIONS = ['Active', 'Transferred', 'PassedOut', 'Inactive']
 
 export default function StudentFormModal({ student, onClose, onSaved }) {
   const [classes, setClasses] = useState([])
@@ -16,7 +18,9 @@ export default function StudentFormModal({ student, onClose, onSaved }) {
     section: student.section || '',
     parentName: student.parentName || '',
     parentPhone: student.parentPhone || '',
+    motherName: student.motherName || '',
     address: student.address || '',
+    status: student.status || 'Active',
   } : emptyForm)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -93,6 +97,20 @@ export default function StudentFormModal({ student, onClose, onSaved }) {
             <input type="text" value={form.parentPhone} onChange={e => setForm({ ...form, parentPhone: e.target.value })}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none" required />
           </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Mother's Name</label>
+            <input type="text" value={form.motherName} onChange={e => setForm({ ...form, motherName: e.target.value })}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none" />
+          </div>
+          {student && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+              <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none">
+                {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+          )}
           <div className="col-span-2">
             <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
             <input type="text" value={form.address} onChange={e => setForm({ ...form, address: e.target.value })}

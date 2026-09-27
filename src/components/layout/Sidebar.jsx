@@ -34,6 +34,12 @@ const categories = [
       { to: '/dashboard', label: 'Dashboard', icon: '⊞' },
     ],
   },
+  {
+    title: 'Administration',
+    links: [
+      { to: '/year-end', label: 'Year End Process', icon: '🎓' },
+    ],
+  },
 ]
 
 export default function Sidebar({ open, onClose }) {
