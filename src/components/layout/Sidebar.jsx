@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 
@@ -8,9 +9,15 @@ const categories = [
       { to: '/students', label: 'Students', icon: '👥' },
       { to: '/attendance', label: 'Attendance', icon: '✅' },
       { to: '/marks', label: 'Marks & Results', icon: '📊' },
-      { to: '/report-card', label: 'Report Cards', icon: '📄' },
       { to: '/subjects', label: 'Subjects', icon: '📚' },
       { to: '/exam-types', label: 'Exam Types', icon: '📋' },
+    ],
+  },
+  {
+    title: 'Tools',
+    links: [
+      { to: '/report-card', label: 'Report Cards', icon: '📄' },
+      { to: '/question-paper', label: 'Question Papers', icon: '📝' },
     ],
   },
   {
@@ -18,33 +25,40 @@ const categories = [
     links: [
       { to: '/notices', label: 'Notices', icon: '📋' },
       { to: '/admissions', label: 'Admissions', icon: '🎓' },
-    ],
-  },
-  {
-    title: 'Content',
-    links: [
       { to: '/gallery', label: 'Gallery', icon: '🖼️' },
+    ],
+  },
+  {
+    title: 'Admin',
+    links: [
       { to: '/settings', label: 'Settings', icon: '⚙️' },
-    ],
-  },
-  {
-    title: 'Tools',
-    links: [
-      { to: '/question-paper', label: 'Question Papers', icon: '📝' },
-      { to: '/dashboard', label: 'Dashboard', icon: '⊞' },
-    ],
-  },
-  {
-    title: 'Administration',
-    links: [
-      { to: '/year-end', label: 'Year End Process', icon: '🎓' },
+      { to: '/year-end', label: 'Year End', icon: '📅' },
     ],
   },
 ]
 
+const storageKey = (title) => `cms_sidebar_${title.toUpperCase()}`
+
+const loadCollapsedState = () => {
+  const state = {}
+  categories.forEach(category => {
+    state[category.title] = localStorage.getItem(storageKey(category.title)) === 'true'
+  })
+  return state
+}
+
 export default function Sidebar({ open, onClose }) {
   const navigate = useNavigate()
   const { user, logout } = useAuth()
+  const [collapsed, setCollapsed] = useState(loadCollapsedState)
+
+  const toggleCategory = (title) => {
+    setCollapsed(prev => {
+      const next = { ...prev, [title]: !prev[title] }
+      localStorage.setItem(storageKey(title), String(next[title]))
+      return next
+    })
+  }
 
   const handleLogout = () => {
     logout()
@@ -72,33 +86,46 @@ export default function Sidebar({ open, onClose }) {
             <button onClick={onClose} className="md:hidden text-white text-2xl leading-none">×</button>
           </div>
 
-          <nav className="space-y-4">
-            {categories.map(category => (
-              <div key={category.title}>
-                <p className="text-white text-[10px] font-semibold uppercase tracking-wider opacity-40 px-3 mb-1">
-                  {category.title}
-                </p>
-                <div className="space-y-1">
-                  {category.links.map(link => (
-                    <NavLink
-                      key={link.to}
-                      to={link.to}
-                      onClick={onClose}
-                      className={({ isActive }) =>
-                        `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition ${
-                          isActive
-                            ? 'bg-white text-gray-900 font-medium'
-                            : 'text-white opacity-75 hover:opacity-100 hover:bg-white/10'
-                        }`
-                      }
-                    >
-                      <span>{link.icon}</span>
-                      {link.label}
-                    </NavLink>
-                  ))}
+          <nav className="space-y-2">
+            {categories.map(category => {
+              const isCollapsed = collapsed[category.title]
+              return (
+                <div key={category.title}>
+                  <button
+                    type="button"
+                    onClick={() => toggleCategory(category.title)}
+                    className="w-full flex items-center justify-between text-white text-[10px] font-semibold uppercase tracking-wider opacity-40 hover:opacity-70 px-3 py-1.5 transition"
+                  >
+                    <span>{category.title}</span>
+                    <span className="text-[9px]">{isCollapsed ? '▶' : '▼'}</span>
+                  </button>
+                  <div
+                    className="overflow-hidden transition-all duration-200 ease-in-out"
+                    style={{ maxHeight: isCollapsed ? '0px' : '400px' }}
+                  >
+                    <div className="space-y-1 pl-2 pt-1">
+                      {category.links.map(link => (
+                        <NavLink
+                          key={link.to}
+                          to={link.to}
+                          onClick={onClose}
+                          className={({ isActive }) =>
+                            `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition ${
+                              isActive
+                                ? 'bg-white text-gray-900 font-medium'
+                                : 'text-white opacity-75 hover:opacity-100 hover:bg-white/10'
+                            }`
+                          }
+                        >
+                          <span>{link.icon}</span>
+                          {link.label}
+                        </NavLink>
+                      ))}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </nav>
         </div>
 
