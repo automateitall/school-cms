@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react'
 import Layout from '../components/layout/Layout'
 import api from '../lib/api'
+import { SkeletonBlock, rowBg } from '../components/Skeleton'
+
+const COLUMNS = ['Child Name', 'Parent', 'Phone', 'Class', 'School', 'Date', 'Status', 'Action']
 
 export default function Admissions() {
   const [admissions, setAdmissions] = useState([])
@@ -43,14 +46,36 @@ export default function Admissions() {
 
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
         {loading ? (
-          <p className="text-center text-gray-400 py-12">Loading...</p>
+          <table className="w-full text-sm">
+            <thead style={{ background: '#f0f4fa' }}>
+              <tr>
+                {COLUMNS.map(h => (
+                  <th key={h} className="text-left px-4 py-3 text-gray-600 font-medium">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {Array.from({ length: 6 }).map((_, i) => (
+                <tr key={i} style={{ background: rowBg(i) }} className="border-t border-gray-100">
+                  <td className="px-4 py-3"><SkeletonBlock width="130px" /></td>
+                  <td className="px-4 py-3"><SkeletonBlock width="110px" /></td>
+                  <td className="px-4 py-3"><SkeletonBlock width="100px" /></td>
+                  <td className="px-4 py-3"><SkeletonBlock width="60px" /></td>
+                  <td className="px-4 py-3"><SkeletonBlock width="80px" height="22px" /></td>
+                  <td className="px-4 py-3"><SkeletonBlock width="90px" /></td>
+                  <td className="px-4 py-3"><SkeletonBlock width="70px" height="22px" /></td>
+                  <td className="px-4 py-3"><SkeletonBlock width="120px" height="24px" /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         ) : admissions.length === 0 ? (
           <p className="text-center text-gray-400 py-12">No enquiries yet.</p>
         ) : (
           <table className="w-full text-sm">
             <thead style={{ background: '#f0f4fa' }}>
               <tr>
-                {['Child Name', 'Parent', 'Phone', 'Class', 'School', 'Date', 'Status', 'Action'].map(h => (
+                {COLUMNS.map(h => (
                   <th key={h} className="text-left px-4 py-3 text-gray-600 font-medium">{h}</th>
                 ))}
               </tr>

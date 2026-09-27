@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import Layout from '../components/layout/Layout'
 import api from '../lib/api'
 import { fetchClasses } from '../lib/classes'
+import { SkeletonBlock, rowBg } from '../components/Skeleton'
 
 const pctColor = (pct) => pct >= 75 ? '#00bf63' : pct >= 50 ? '#f59e0b' : '#e53e3e'
 
@@ -200,7 +201,40 @@ export default function Marks() {
         </div>
       </div>
 
-      {loaded && students.length > 0 && (
+      {loading && (
+        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead style={{ background: '#f0f4fa' }}>
+              <tr>
+                <th className="text-left px-4 py-3"><SkeletonBlock width="50px" /></th>
+                <th className="text-left px-4 py-3"><SkeletonBlock width="90px" /></th>
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <th key={i} className="text-center px-4 py-3"><SkeletonBlock width="60px" center /></th>
+                ))}
+                <th className="text-center px-4 py-3"><SkeletonBlock width="50px" center /></th>
+                <th className="text-center px-4 py-3"><SkeletonBlock width="70px" center /></th>
+                <th className="text-center px-4 py-3"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {Array.from({ length: 6 }).map((_, i) => (
+                <tr key={i} style={{ background: rowBg(i) }} className="border-t border-gray-100">
+                  <td className="px-4 py-3"><SkeletonBlock width="36px" /></td>
+                  <td className="px-4 py-3"><SkeletonBlock width="120px" /></td>
+                  {Array.from({ length: 4 }).map((_, j) => (
+                    <td key={j} className="px-4 py-3"><SkeletonBlock width="50px" center /></td>
+                  ))}
+                  <td className="px-4 py-3"><SkeletonBlock width="50px" center /></td>
+                  <td className="px-4 py-3"><SkeletonBlock width="40px" center /></td>
+                  <td className="px-4 py-3"><SkeletonBlock width="50px" height="24px" center /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {loaded && !loading && students.length > 0 && (
         <div className="bg-white border border-gray-200 rounded-xl overflow-hidden overflow-x-auto">
           <table className="w-full text-sm">
             <thead style={{ background: '#f0f4fa' }}>
@@ -291,7 +325,7 @@ export default function Marks() {
         </div>
       )}
 
-      {!loaded && (
+      {!loaded && !loading && (
         <div className="bg-white border border-gray-200 rounded-xl p-12 text-center text-gray-400">
           Select a class and exam type, then click Load.
         </div>

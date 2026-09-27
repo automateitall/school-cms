@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import Layout from '../components/layout/Layout'
 import api from '../lib/api'
 import { fetchClasses } from '../lib/classes'
+import { SkeletonBlock, rowBg } from '../components/Skeleton'
 
 const STATUS_META = {
   present: { label: 'P', color: '#00bf63', bg: '#e6f9f0' },
@@ -144,8 +145,25 @@ function MarkAttendanceTab({ classes }) {
       </div>
 
       {loading && (
-        <div className="bg-white border border-gray-200 rounded-xl p-12 text-center text-gray-400">
-          Loading...
+        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden mb-5">
+          <table className="w-full text-sm">
+            <thead style={{ background: '#f0f4fa' }}>
+              <tr>
+                <th className="text-left px-4 py-3 text-gray-600 font-medium">Roll No</th>
+                <th className="text-left px-4 py-3 text-gray-600 font-medium">Student Name</th>
+                <th className="text-left px-4 py-3 text-gray-600 font-medium">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {Array.from({ length: 6 }).map((_, i) => (
+                <tr key={i} style={{ background: rowBg(i) }} className="border-t border-gray-100">
+                  <td className="px-4 py-3"><SkeletonBlock width="36px" /></td>
+                  <td className="px-4 py-3"><SkeletonBlock width="140px" /></td>
+                  <td className="px-4 py-3"><SkeletonBlock width="180px" /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
 
@@ -327,8 +345,33 @@ function ViewAttendanceTab({ classes }) {
       )}
 
       {viewClass && loading && (
-        <div className="bg-white border border-gray-200 rounded-xl p-12 text-center text-gray-400">
-          Loading...
+        <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
+          <table className="text-sm border-collapse">
+            <thead style={{ background: '#f0f4fa' }}>
+              <tr>
+                <th className="text-left px-4 py-3 text-gray-600 font-medium whitespace-nowrap sticky left-0" style={{ background: '#f0f4fa' }}>Roll No</th>
+                <th className="text-left px-4 py-3 text-gray-600 font-medium whitespace-nowrap">Student Name</th>
+                {days.map(d => (
+                  <th key={d} className="text-center px-2 py-3 text-gray-600 font-medium whitespace-nowrap">{d}</th>
+                ))}
+                <th className="text-center px-4 py-3 text-gray-600 font-medium whitespace-nowrap">%</th>
+              </tr>
+            </thead>
+            <tbody>
+              {Array.from({ length: 6 }).map((_, i) => (
+                <tr key={i} style={{ background: rowBg(i) }} className="border-t border-gray-100">
+                  <td className="px-4 py-3 sticky left-0" style={{ background: rowBg(i) }}><SkeletonBlock width="32px" /></td>
+                  <td className="px-4 py-3"><SkeletonBlock width="120px" /></td>
+                  {days.map(d => (
+                    <td key={d} className="px-1 py-2 text-center">
+                      <SkeletonBlock width="20px" height="20px" center />
+                    </td>
+                  ))}
+                  <td className="px-4 py-3"><SkeletonBlock width="30px" center /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
 

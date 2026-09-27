@@ -1,8 +1,24 @@
 import { useState, useEffect } from 'react'
 import Layout from '../components/layout/Layout'
 import api from '../lib/api'
+import { SkeletonBlock } from '../components/Skeleton'
 
 const CATEGORIES = ['General', 'Sports', 'Events', 'Classroom', 'Festivals', 'Trips']
+
+function SkeletonImageCard() {
+  return (
+    <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+      <div className="skeleton" style={{ width: '100%', height: '160px' }} />
+      <div style={{ padding: '12px' }}>
+        <SkeletonBlock width="70%" height="14px" className="mb-2" />
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <SkeletonBlock width="60px" height="18px" />
+          <SkeletonBlock width="40px" height="12px" />
+        </div>
+      </div>
+    </div>
+  )
+}
 
 export default function Gallery() {
   const [images, setImages] = useState([])
@@ -137,7 +153,9 @@ export default function Gallery() {
 
       {/* Images Grid */}
       {loading ? (
-        <p className="text-center text-gray-400 py-12">Loading...</p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '16px' }}>
+          {Array.from({ length: 4 }).map((_, i) => <SkeletonImageCard key={i} />)}
+        </div>
       ) : filtered.length === 0 ? (
         <div className="bg-white border border-gray-200 rounded-xl p-12 text-center text-gray-400">
           No photos yet. Upload your first photo above.

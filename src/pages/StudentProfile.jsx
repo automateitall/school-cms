@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import Layout from '../components/layout/Layout'
 import api from '../lib/api'
 import StudentFormModal from '../components/StudentFormModal'
+import { SkeletonBlock, SkeletonCircle, rowBg } from '../components/Skeleton'
 
 const TABS = ['Overview', 'Marks', 'Attendance']
 
@@ -29,6 +30,8 @@ export default function StudentProfile() {
   const [attendanceSession, setAttendanceSession] = useState('')
   const [markSessions, setMarkSessions] = useState([])
   const [attendanceSessions, setAttendanceSessions] = useState([])
+  const [marksLoading, setMarksLoading] = useState(true)
+  const [attendanceLoading, setAttendanceLoading] = useState(true)
 
   const fetchStudent = async () => {
     setLoading(true)
@@ -72,12 +75,20 @@ export default function StudentProfile() {
 
   useEffect(() => {
     if (!student || !marksSession) return
-    api.get(`/marks?studentId=${id}&session=${encodeURIComponent(marksSession)}`).then(res => setMarks(res.data)).catch(() => setMarks([]))
+    setMarksLoading(true)
+    api.get(`/marks?studentId=${id}&session=${encodeURIComponent(marksSession)}`)
+      .then(res => setMarks(res.data))
+      .catch(() => setMarks([]))
+      .finally(() => setMarksLoading(false))
   }, [student, id, marksSession])
 
   useEffect(() => {
     if (!student || !attendanceSession) return
-    api.get(`/attendance?studentId=${id}&session=${encodeURIComponent(attendanceSession)}`).then(res => setAttendance(res.data)).catch(() => setAttendance([]))
+    setAttendanceLoading(true)
+    api.get(`/attendance?studentId=${id}&session=${encodeURIComponent(attendanceSession)}`)
+      .then(res => setAttendance(res.data))
+      .catch(() => setAttendance([]))
+      .finally(() => setAttendanceLoading(false))
   }, [student, id, attendanceSession])
 
   const markSessionOptions = [...new Set([currentSession, ...markSessions])].filter(Boolean).sort().reverse()
@@ -109,7 +120,46 @@ export default function StudentProfile() {
   if (loading) {
     return (
       <Layout>
-        <p className="text-center text-gray-400 py-20">Loading...</p>
+        <SkeletonBlock width="140px" height="16px" className="mb-4" />
+        <div className="bg-white border border-gray-200 rounded-xl p-6 mb-6">
+          <div className="flex items-center gap-5">
+            <SkeletonCircle size="80px" />
+            <div className="flex-1">
+              <SkeletonBlock width="160px" height="20px" className="mb-2" />
+              <SkeletonBlock width="220px" height="14px" className="mb-2" />
+              <SkeletonBlock width="140px" height="14px" />
+            </div>
+          </div>
+        </div>
+        <div className="flex gap-4 mb-5 border-b border-gray-200 pb-3">
+          {TABS.map(t => (
+            <SkeletonBlock key={t} width="80px" height="18px" />
+          ))}
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div className="bg-white border border-gray-200 rounded-xl p-5">
+            <SkeletonBlock width="140px" height="16px" className="mb-4" />
+            <div className="space-y-3">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="flex justify-between gap-4">
+                  <SkeletonBlock width="90px" height="12px" />
+                  <SkeletonBlock width="110px" height="12px" />
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="bg-white border border-gray-200 rounded-xl p-5">
+            <SkeletonBlock width="160px" height="16px" className="mb-4" />
+            <div className="grid grid-cols-2 gap-3">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="rounded-lg p-4 text-center" style={{ background: '#f8fafc' }}>
+                  <SkeletonBlock width="60px" height="10px" className="mb-2" center />
+                  <SkeletonBlock width="30px" height="20px" center />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       </Layout>
     )
   }
@@ -257,27 +307,40 @@ export default function StudentProfile() {
 
           <div className="bg-white border border-gray-200 rounded-xl p-5">
             <h3 style={{ color: '#083e78' }} className="font-semibold mb-4">Attendance Summary</h3>
-            <div className="grid grid-cols-2 gap-3">
-              <div style={{ background: '#e8f0fb' }} className="rounded-lg p-4 text-center">
-                <p className="text-gray-500 text-xs mb-1">Total Recorded</p>
-                <p style={{ color: '#083e78' }} className="text-2xl font-bold">{totalMarked}</p>
+            {attendanceLoading ? (
+              <div className="grid grid-cols-2 gap-3">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} style={{ background: '#f8fafc' }} className="rounded-lg p-4 text-center">
+                    <SkeletonBlock width="70px" height="10px" className="mb-2" center />
+                    <SkeletonBlock width="30px" height="20px" center />
+                  </div>
+                ))}
               </div>
-              <div style={{ background: '#e6f9f0' }} className="rounded-lg p-4 text-center">
-                <p className="text-gray-500 text-xs mb-1">Present</p>
-                <p style={{ color: '#00bf63' }} className="text-2xl font-bold">{presentCount}</p>
-              </div>
-              <div style={{ background: '#ffeaea' }} className="rounded-lg p-4 text-center">
-                <p className="text-gray-500 text-xs mb-1">Absent</p>
-                <p style={{ color: '#e53e3e' }} className="text-2xl font-bold">{absentCount}</p>
-              </div>
-              <div style={{ background: '#fef3c7' }} className="rounded-lg p-4 text-center">
-                <p className="text-gray-500 text-xs mb-1">Late</p>
-                <p style={{ color: '#92400e' }} className="text-2xl font-bold">{lateCount}</p>
-              </div>
-            </div>
-            <p className="text-center text-sm text-gray-500 mt-4">
-              Attendance Rate: <span style={{ color: '#083e78' }} className="font-bold">{attendancePct}%</span>
-            </p>
+            ) : (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <div style={{ background: '#e8f0fb' }} className="rounded-lg p-4 text-center">
+                    <p className="text-gray-500 text-xs mb-1">Total Recorded</p>
+                    <p style={{ color: '#083e78' }} className="text-2xl font-bold">{totalMarked}</p>
+                  </div>
+                  <div style={{ background: '#e6f9f0' }} className="rounded-lg p-4 text-center">
+                    <p className="text-gray-500 text-xs mb-1">Present</p>
+                    <p style={{ color: '#00bf63' }} className="text-2xl font-bold">{presentCount}</p>
+                  </div>
+                  <div style={{ background: '#ffeaea' }} className="rounded-lg p-4 text-center">
+                    <p className="text-gray-500 text-xs mb-1">Absent</p>
+                    <p style={{ color: '#e53e3e' }} className="text-2xl font-bold">{absentCount}</p>
+                  </div>
+                  <div style={{ background: '#fef3c7' }} className="rounded-lg p-4 text-center">
+                    <p className="text-gray-500 text-xs mb-1">Late</p>
+                    <p style={{ color: '#92400e' }} className="text-2xl font-bold">{lateCount}</p>
+                  </div>
+                </div>
+                <p className="text-center text-sm text-gray-500 mt-4">
+                  Attendance Rate: <span style={{ color: '#083e78' }} className="font-bold">{attendancePct}%</span>
+                </p>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -293,7 +356,28 @@ export default function StudentProfile() {
               {markSessionOptions.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
           </div>
-          {subjects.length === 0 ? (
+          {marksLoading ? (
+            <table className="w-full text-sm">
+              <thead style={{ background: '#f0f4fa' }}>
+                <tr>
+                  <th className="text-left px-4 py-3 text-gray-600 font-medium">Subject</th>
+                  {(examTypes.length ? examTypes : Array.from({ length: 3 })).map((et, idx) => (
+                    <th key={et?.id || idx} className="text-center px-4 py-3 text-gray-600 font-medium whitespace-nowrap">{et?.name || ''}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <tr key={i} style={{ background: rowBg(i) }} className="border-t border-gray-100">
+                    <td className="px-4 py-3"><SkeletonBlock width="120px" /></td>
+                    {(examTypes.length ? examTypes : Array.from({ length: 3 })).map((_, j) => (
+                      <td key={j} className="px-4 py-3"><SkeletonBlock width="50px" center /></td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : subjects.length === 0 ? (
             <p className="text-center text-gray-400 py-12">No subjects configured for Class {student.class}.</p>
           ) : (
             <table className="w-full text-sm">
@@ -357,7 +441,25 @@ export default function StudentProfile() {
             </div>
           </div>
 
-          {monthRecords.length === 0 ? (
+          {attendanceLoading ? (
+            <>
+              <div className="grid grid-cols-7 gap-2 mb-2">
+                {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => (
+                  <div key={d} className="text-center text-xs font-semibold text-gray-400 py-1">{d}</div>
+                ))}
+              </div>
+              <div className="grid grid-cols-7 gap-2 mb-5">
+                {calendarCells.map((day, i) => (
+                  day ? <SkeletonBlock key={i} width="100%" height="40px" /> : <div key={i} />
+                ))}
+              </div>
+              <div className="flex items-center justify-center gap-6 border-t border-gray-100 pt-4 flex-wrap">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <SkeletonBlock key={i} width="70px" height="16px" />
+                ))}
+              </div>
+            </>
+          ) : monthRecords.length === 0 ? (
             <p className="text-center text-gray-400 py-12">No attendance recorded for this month.</p>
           ) : (
             <>

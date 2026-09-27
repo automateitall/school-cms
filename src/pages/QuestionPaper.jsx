@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Layout from '../components/layout/Layout'
 import api from '../lib/api'
 import { fetchClasses } from '../lib/classes'
+import { SkeletonBlock, rowBg } from '../components/Skeleton'
 
 const QUESTION_TYPES = ['MCQ', 'Short Answer', 'Long Answer', 'Fill in the blank']
 const SECTION_NAMES = ['A', 'B', 'C']
@@ -228,7 +229,27 @@ export default function QuestionPaper() {
           Select both a class and an exam type to see subjects.
         </div>
       ) : listLoading ? (
-        <div className="bg-white border border-gray-200 rounded-xl p-16 text-center text-gray-400">Loading...</div>
+        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+          <table className="w-full text-sm">
+            <thead style={{ background: '#f0f4fa' }}>
+              <tr>
+                {['Subject', 'Max Marks', 'Status', ''].map(h => (
+                  <th key={h} className="text-left px-4 py-3 text-gray-600 font-medium">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {Array.from({ length: 6 }).map((_, i) => (
+                <tr key={i} style={{ background: rowBg(i) }} className="border-t border-gray-100">
+                  <td className="px-4 py-3"><SkeletonBlock width="140px" /></td>
+                  <td className="px-4 py-3"><SkeletonBlock width="50px" /></td>
+                  <td className="px-4 py-3"><SkeletonBlock width="80px" height="22px" /></td>
+                  <td className="px-4 py-3"><SkeletonBlock width="100px" height="26px" /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       ) : subjects.length === 0 ? (
         <div className="bg-white border border-gray-200 rounded-xl p-16 text-center text-gray-400">
           No subjects configured for {selectedClass}.

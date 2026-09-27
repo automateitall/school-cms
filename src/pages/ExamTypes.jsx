@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react'
 import Layout from '../components/layout/Layout'
 import api from '../lib/api'
+import { SkeletonBlock, rowBg } from '../components/Skeleton'
 
 export default function ExamTypes() {
   const [examTypes, setExamTypes] = useState([])
   const [newName, setNewName] = useState('')
   const [newMaxMarks, setNewMaxMarks] = useState('')
   const [loading, setLoading] = useState(false)
+  const [examTypesLoading, setExamTypesLoading] = useState(true)
   const [editingId, setEditingId] = useState(null)
   const [editName, setEditName] = useState('')
   const [editMaxMarks, setEditMaxMarks] = useState('')
@@ -14,10 +16,12 @@ export default function ExamTypes() {
   useEffect(() => { fetchExamTypes() }, [])
 
   const fetchExamTypes = async () => {
+    setExamTypesLoading(true)
     try {
       const res = await api.get('/examtypes')
       setExamTypes(res.data)
     } catch {}
+    setExamTypesLoading(false)
   }
 
   const addExamType = async () => {
@@ -93,7 +97,27 @@ export default function ExamTypes() {
       </div>
 
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-        {examTypes.length === 0 ? (
+        {examTypesLoading ? (
+          <table className="w-full text-sm">
+            <thead style={{ background: '#f0f4fa' }}>
+              <tr>
+                {['Exam Type', 'Max Marks', 'Status', ''].map(h => (
+                  <th key={h} className="text-left px-4 py-3 text-gray-600 font-medium">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {Array.from({ length: 5 }).map((_, i) => (
+                <tr key={i} style={{ background: rowBg(i) }} className="border-t border-gray-100">
+                  <td className="px-4 py-3"><SkeletonBlock width="120px" /></td>
+                  <td className="px-4 py-3"><SkeletonBlock width="40px" /></td>
+                  <td className="px-4 py-3"><SkeletonBlock width="70px" height="22px" /></td>
+                  <td className="px-4 py-3"><SkeletonBlock width="120px" height="16px" /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : examTypes.length === 0 ? (
           <p className="text-center text-gray-400 py-12">No exam types added yet.</p>
         ) : (
           <table className="w-full text-sm">

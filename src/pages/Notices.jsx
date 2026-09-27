@@ -1,6 +1,30 @@
 import { useEffect, useState } from 'react'
 import Layout from '../components/layout/Layout'
 import api from '../lib/api'
+import { SkeletonBlock } from '../components/Skeleton'
+
+function SkeletonNoticeCard() {
+  return (
+    <div className="bg-white border border-gray-200 rounded-xl p-5">
+      <div className="flex items-start justify-between">
+        <div className="flex-1">
+          <div className="flex items-center gap-2 mb-2">
+            <SkeletonBlock width="60px" height="18px" />
+            <SkeletonBlock width="70px" height="18px" />
+          </div>
+          <SkeletonBlock width="220px" height="16px" className="mb-2" />
+          <SkeletonBlock width="90%" height="12px" className="mb-1" />
+          <SkeletonBlock width="60%" height="12px" className="mb-2" />
+          <SkeletonBlock width="120px" height="10px" />
+        </div>
+        <div className="flex flex-col items-end gap-2 ml-4">
+          <SkeletonBlock width="80px" height="28px" />
+          <SkeletonBlock width="50px" height="14px" />
+        </div>
+      </div>
+    </div>
+  )
+}
 
 export default function Notices() {
   const [notices, setNotices] = useState([])
@@ -117,7 +141,7 @@ export default function Notices() {
 
       <div className="space-y-3">
         {loading ? (
-          <p className="text-center text-gray-400 py-12">Loading...</p>
+          Array.from({ length: 4 }).map((_, i) => <SkeletonNoticeCard key={i} />)
         ) : notices.length === 0 ? (
           <p className="text-center text-gray-400 py-12">No notices yet.</p>
         ) : (

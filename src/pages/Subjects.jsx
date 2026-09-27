@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react'
 import Layout from '../components/layout/Layout'
 import api from '../lib/api'
+import { SkeletonBlock, rowBg } from '../components/Skeleton'
 
 export default function Subjects() {
   const [subjects, setSubjects] = useState([])
   const [selectedClass, setSelectedClass] = useState('Class 1')
   const [newSubject, setNewSubject] = useState('')
   const [loading, setLoading] = useState(false)
+  const [subjectsLoading, setSubjectsLoading] = useState(true)
   const [classes, setClasses] = useState([])
   const [editingId, setEditingId] = useState(null)
   const [editName, setEditName] = useState('')
@@ -18,10 +20,12 @@ export default function Subjects() {
   useEffect(() => { fetchSubjects() }, [selectedClass])
 
   const fetchSubjects = async () => {
+    setSubjectsLoading(true)
     try {
       const res = await api.get(`/subjects?class=${encodeURIComponent(selectedClass)}`)
       setSubjects(res.data)
     } catch {}
+    setSubjectsLoading(false)
   }
 
   const addSubject = async () => {
@@ -132,7 +136,26 @@ export default function Subjects() {
           </button>
         </div>
 
-        {subjects.length === 0 ? (
+        {subjectsLoading ? (
+          <table className="w-full text-sm">
+            <thead style={{ background: '#f0f4fa' }}>
+              <tr>
+                {['Subject Name', 'Status', ''].map(h => (
+                  <th key={h} className="text-left px-4 py-3 text-gray-600 font-medium">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {Array.from({ length: 5 }).map((_, i) => (
+                <tr key={i} style={{ background: rowBg(i) }} className="border-t border-gray-100">
+                  <td className="px-4 py-3"><SkeletonBlock width="140px" /></td>
+                  <td className="px-4 py-3"><SkeletonBlock width="70px" height="22px" /></td>
+                  <td className="px-4 py-3"><SkeletonBlock width="120px" height="16px" /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : subjects.length === 0 ? (
           <p className="text-gray-400 text-sm">No subjects added yet for {selectedClass}.</p>
         ) : (
           <table className="w-full text-sm">

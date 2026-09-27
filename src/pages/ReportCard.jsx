@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import Layout from '../components/layout/Layout'
 import api from '../lib/api'
 import { fetchClasses } from '../lib/classes'
+import { SkeletonBlock, rowBg } from '../components/Skeleton'
 
 export default function ReportCard() {
   const [students, setStudents] = useState([])
@@ -81,7 +82,36 @@ export default function ReportCard() {
         </button>
       </div>
 
-      {generated && students.length > 0 && (
+      {loading && (
+        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+          <div style={{ background: '#f0f4fa' }} className="px-5 py-3">
+            <SkeletonBlock width="220px" height="16px" />
+          </div>
+          <table className="w-full text-sm">
+            <thead style={{ background: '#f8fafc' }}>
+              <tr>
+                {['Student', 'Total', 'Percentage', 'Grade', 'Result', 'Download'].map(h => (
+                  <th key={h} className="text-left px-4 py-3 text-gray-600 font-medium">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {Array.from({ length: 6 }).map((_, i) => (
+                <tr key={i} style={{ background: rowBg(i) }} className="border-t border-gray-100">
+                  <td className="px-4 py-3"><SkeletonBlock width="140px" /></td>
+                  <td className="px-4 py-3"><SkeletonBlock width="60px" /></td>
+                  <td className="px-4 py-3"><SkeletonBlock width="50px" /></td>
+                  <td className="px-4 py-3"><SkeletonBlock width="30px" /></td>
+                  <td className="px-4 py-3"><SkeletonBlock width="50px" /></td>
+                  <td className="px-4 py-3"><SkeletonBlock width="130px" height="26px" /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {!loading && generated && students.length > 0 && (
         <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
           <div style={{ background: '#f0f4fa' }} className="px-5 py-3 flex items-center justify-between">
             <p style={{ color: '#083e78' }} className="font-semibold text-sm">
@@ -141,7 +171,7 @@ export default function ReportCard() {
         </div>
       )}
 
-      {generated && students.length === 0 && (
+      {!loading && generated && students.length === 0 && (
         <div className="bg-white border border-gray-200 rounded-xl p-12 text-center text-gray-400">
           No students found in Class {selectedClass}.
         </div>
