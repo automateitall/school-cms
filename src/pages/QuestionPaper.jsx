@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import Layout from '../components/layout/Layout'
 import api from '../lib/api'
-import { fetchClasses } from '../lib/classes'
+import { getCachedClasses } from '../lib/cache'
 import { SkeletonBlock, rowBg } from '../components/Skeleton'
 
 const QUESTION_TYPES = ['MCQ', 'Short Answer', 'Long Answer', 'Fill in the blank']
@@ -47,8 +47,13 @@ export default function QuestionPaper() {
   const [uploadingKey, setUploadingKey] = useState(null)
 
   useEffect(() => {
-    fetchClasses().then(setClasses)
-    api.get('/examtypes').then(r => setExamTypes(r.data)).catch(() => {})
+    Promise.all([
+      getCachedClasses(api),
+      api.get('/examtypes').then(r => r.data)
+    ]).then(([classesData, examTypesData]) => {
+      setClasses(classesData)
+      setExamTypes(examTypesData)
+    }).catch(console.error)
   }, [])
 
   useEffect(() => {

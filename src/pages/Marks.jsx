@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import Layout from '../components/layout/Layout'
 import api from '../lib/api'
-import { fetchClasses } from '../lib/classes'
+import { getCachedClasses, getCachedSettings } from '../lib/cache'
 import { SkeletonBlock, rowBg } from '../components/Skeleton'
 
 const pctColor = (pct) => pct >= 75 ? '#00bf63' : pct >= 50 ? '#f59e0b' : '#e53e3e'
@@ -24,15 +24,15 @@ export default function Marks() {
   const [cellWarnings, setCellWarnings] = useState({})
 
   useEffect(() => {
-    fetchClasses().then(setClasses)
-  }, [])
-
-  useEffect(() => {
-    api.get('/examtypes').then(r => setExamTypes(r.data)).catch(() => {})
-  }, [])
-
-  useEffect(() => {
-    api.get('/settings').then(r => setCurrentSession(r.data.currentSession)).catch(() => {})
+    Promise.all([
+      getCachedClasses(api),
+      api.get('/examtypes').then(r => r.data),
+      getCachedSettings(api).then(s => s.currentSession || '2026-27')
+    ]).then(([classesData, examTypesData, session]) => {
+      setClasses(classesData)
+      setExamTypes(examTypesData)
+      setCurrentSession(session)
+    }).catch(console.error)
   }, [])
 
   const selectedExamTypeObj = examTypes.find(et => et.name === selectedExamType)

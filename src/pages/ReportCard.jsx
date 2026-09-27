@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import Layout from '../components/layout/Layout'
 import api from '../lib/api'
-import { fetchClasses } from '../lib/classes'
+import { getCachedClasses, getCachedSettings } from '../lib/cache'
 import { SkeletonBlock, rowBg } from '../components/Skeleton'
 
 export default function ReportCard() {
@@ -15,13 +15,16 @@ export default function ReportCard() {
   const [loading, setLoading] = useState(false)
   const [generated, setGenerated] = useState(false)
   useEffect(() => {
-  fetchClasses().then(setClasses)
+    Promise.all([
+      getCachedClasses(api),
+      api.get('/examtypes').then(r => r.data)
+    ]).then(([classesData, examTypesData]) => {
+      setClasses(classesData)
+      setExamTypes(examTypesData)
+    }).catch(console.error)
   }, [])
   useEffect(() => {
-    api.get('/examtypes').then(r => setExamTypes(r.data)).catch(() => {})
-  }, [])
-  useEffect(() => {
-    api.get('/settings').then(r => setCurrentSession(r.data.currentSession)).catch(() => {})
+    getCachedSettings(api).then(s => setCurrentSession(s.currentSession)).catch(() => {})
   }, [])
 
   const generateReports = async () => {

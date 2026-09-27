@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import Layout from '../components/layout/Layout'
 import api from '../lib/api'
-import { fetchClasses } from '../lib/classes'
+import { getCachedClasses, getCachedSettings } from '../lib/cache'
 import { SkeletonBlock, rowBg } from '../components/Skeleton'
 
 const STATUS_META = {
@@ -20,11 +20,11 @@ export default function Attendance() {
   const [currentSession, setCurrentSession] = useState('')
 
   useEffect(() => {
-    fetchClasses().then(setClasses)
+    getCachedClasses(api).then(setClasses).catch(() => {})
   }, [])
 
   useEffect(() => {
-    api.get('/settings').then(r => setCurrentSession(r.data.currentSession)).catch(() => {})
+    getCachedSettings(api).then(s => setCurrentSession(s.currentSession)).catch(() => {})
   }, [])
 
   return (

@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import Layout from '../components/layout/Layout'
 import api from '../lib/api'
+import { getCachedSettings } from '../lib/cache'
 import StudentFormModal from '../components/StudentFormModal'
 import { SkeletonBlock, SkeletonCircle, rowBg } from '../components/Skeleton'
 
@@ -32,61 +33,93 @@ export default function StudentProfile() {
   const [attendanceSessions, setAttendanceSessions] = useState([])
   const [marksLoading, setMarksLoading] = useState(true)
   const [attendanceLoading, setAttendanceLoading] = useState(true)
-
-  const fetchStudent = async () => {
-    setLoading(true)
-    try {
-      const res = await api.get(`/students/${id}`)
-      setStudent(res.data)
-    } catch (err) {
-      console.error(err)
-      setStudent(null)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => { fetchStudent() }, [id])
+  const marksLoadedForSession = useRef(null)
+  const attendanceLoadedForSession = useRef(null)
 
   useEffect(() => {
-    api.get('/settings').then(r => {
-      const s = r.data.currentSession || '2026-27'
-      setCurrentSession(s)
-      setMarksSession(s)
-      setAttendanceSession(s)
-    }).catch(() => {})
-  }, [])
+    let cancelled = false
+    const load = async () => {
+      setLoading(true)
+      setMarksLoading(true)
+      setAttendanceLoading(true)
+      try {
+        const settings = await getCachedSettings(api)
+        const session = settings.currentSession || '2026-27'
+        if (cancelled) return
+        setCurrentSession(session)
+        setMarksSession(session)
+        setAttendanceSession(session)
+
+        const [studentRes, attendanceRes, marksRes] = await Promise.all([
+          api.get(`/students/${id}`),
+          api.get(`/attendance?studentId=${id}&session=${encodeURIComponent(session)}`),
+          api.get(`/marks?studentId=${id}&session=${encodeURIComponent(session)}`)
+        ])
+        if (cancelled) return
+        setStudent(studentRes.data)
+        setAttendance(attendanceRes.data)
+        setMarks(marksRes.data)
+        marksLoadedForSession.current = session
+        attendanceLoadedForSession.current = session
+      } catch (err) {
+        console.error(err)
+        if (!cancelled) setStudent(null)
+      } finally {
+        if (!cancelled) {
+          setLoading(false)
+          setMarksLoading(false)
+          setAttendanceLoading(false)
+        }
+      }
+    }
+    load()
+    return () => { cancelled = true }
+  }, [id])
 
   useEffect(() => {
     if (!student) return
-    api.get(`/subjects?class=${encodeURIComponent(student.class)}`).then(res => setSubjects(res.data)).catch(() => setSubjects([]))
-    api.get('/examtypes').then(res => setExamTypes(res.data)).catch(() => setExamTypes([]))
+    Promise.all([
+      api.get(`/subjects?class=${encodeURIComponent(student.class)}`),
+      api.get('/examtypes')
+    ]).then(([subjRes, examRes]) => {
+      setSubjects(subjRes.data)
+      setExamTypes(examRes.data)
+    }).catch(() => { setSubjects([]); setExamTypes([]) })
   }, [student?.class])
 
   useEffect(() => {
     if (!student) return
-    api.get(`/marks?studentId=${id}&session=all`).then(res => {
-      setMarkSessions([...new Set(res.data.map(m => m.session).filter(Boolean))])
-    }).catch(() => setMarkSessions([]))
-    api.get(`/attendance?studentId=${id}&session=all`).then(res => {
-      setAttendanceSessions([...new Set(res.data.map(a => a.session).filter(Boolean))])
-    }).catch(() => setAttendanceSessions([]))
+    Promise.all([
+      api.get(`/marks?studentId=${id}&session=all`),
+      api.get(`/attendance?studentId=${id}&session=all`)
+    ]).then(([marksRes, attendanceRes]) => {
+      setMarkSessions([...new Set(marksRes.data.map(m => m.session).filter(Boolean))])
+      setAttendanceSessions([...new Set(attendanceRes.data.map(a => a.session).filter(Boolean))])
+    }).catch(() => { setMarkSessions([]); setAttendanceSessions([]) })
   }, [student, id])
 
   useEffect(() => {
     if (!student || !marksSession) return
+    if (marksLoadedForSession.current === marksSession) return
     setMarksLoading(true)
     api.get(`/marks?studentId=${id}&session=${encodeURIComponent(marksSession)}`)
-      .then(res => setMarks(res.data))
+      .then(res => {
+        setMarks(res.data)
+        marksLoadedForSession.current = marksSession
+      })
       .catch(() => setMarks([]))
       .finally(() => setMarksLoading(false))
   }, [student, id, marksSession])
 
   useEffect(() => {
     if (!student || !attendanceSession) return
+    if (attendanceLoadedForSession.current === attendanceSession) return
     setAttendanceLoading(true)
     api.get(`/attendance?studentId=${id}&session=${encodeURIComponent(attendanceSession)}`)
-      .then(res => setAttendance(res.data))
+      .then(res => {
+        setAttendance(res.data)
+        attendanceLoadedForSession.current = attendanceSession
+      })
       .catch(() => setAttendance([]))
       .finally(() => setAttendanceLoading(false))
   }, [student, id, attendanceSession])

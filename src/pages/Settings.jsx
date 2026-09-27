@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import Layout from '../components/layout/Layout'
 import api from '../lib/api'
 import { CLASS_ORDER } from '../lib/classes'
+import { clearCache } from '../lib/cache'
 
 const Section = ({ title, children }) => (
   <div className="bg-white border border-gray-200 rounded-xl p-5 mb-5">
@@ -61,6 +62,7 @@ export default function Settings() {
     setSaving(true)
     try {
       await api.post('/settings', settings)
+      clearCache()
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
     } catch (err) {
