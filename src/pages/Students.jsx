@@ -4,6 +4,7 @@ import Layout from '../components/layout/Layout'
 import api from '../lib/api'
 import StudentFormModal from '../components/StudentFormModal'
 import { SkeletonBlock, rowBg } from '../components/Skeleton'
+import { getCachedClasses } from '../lib/cache'
 
 const COLUMNS = ['Name', 'Roll No', 'Class', 'Section', 'School', 'Status', 'Parent', 'Phone', '']
 
@@ -39,6 +40,7 @@ export default function Students() {
   const [deleteSummary, setDeleteSummary] = useState(null)
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
   const [deleting, setDeleting] = useState(false)
+  const [studentSummaries, setStudentSummaries] = useState({})
   const navigate = useNavigate()
 
   const fetchStudents = async (all = showAll) => {
@@ -53,26 +55,32 @@ export default function Students() {
     }
   }
 
-  const fetchClasses = async () => {
-    try {
-      const res = await api.get('/settings/classes')
-      setClasses(res.data.classes || [])
-    } catch (err) {
-      console.error(err)
-    }
-  }
-
   useEffect(() => {
-    fetchClasses()
+    getCachedClasses(api).then(setClasses).catch(() => {})
   }, [])
 
   useEffect(() => {
     fetchStudents(showAll)
   }, [showAll])
 
+  const prefetchSummary = (studentId) => {
+    if (studentSummaries[studentId]) return
+    api.get(`/students/${studentId}/summary`)
+      .then(res => setStudentSummaries(prev => ({ ...prev, [studentId]: res.data })))
+      .catch(() => {})
+  }
+
   const handleDeleteClick = async (student) => {
+    const cached = studentSummaries[student.id]
+    if (cached) {
+      setDeleteSummary(cached)
+      setDeleteTarget(student)
+      setDeleteConfirmText('')
+      return
+    }
     try {
       const res = await api.get(`/students/${student.id}/summary`)
+      setStudentSummaries(prev => ({ ...prev, [student.id]: res.data }))
       setDeleteSummary(res.data)
       setDeleteTarget(student)
       setDeleteConfirmText('')
@@ -295,6 +303,7 @@ export default function Students() {
                         Edit
                       </button>
                       <button onClick={() => handleDeleteClick(s)}
+                        onMouseEnter={() => prefetchSummary(s.id)}
                         className="text-red-400 hover:text-red-600 text-xs transition">
                         Delete
                       </button>

@@ -1,5 +1,6 @@
  
 import api from './api'
+import { getCachedClasses } from './cache'
 
 export const CLASS_ORDER = [
   'Play Group',
@@ -22,8 +23,7 @@ export const CLASS_ORDER = [
 
 export async function fetchClasses() {
   try {
-    const res = await api.get('/settings/classes')
-    return res.data.classes
+    return await getCachedClasses(api)
   } catch {
     return CLASS_ORDER
   }

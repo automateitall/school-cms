@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import Layout from '../components/layout/Layout'
 import api from '../lib/api'
+import { getCachedClasses } from '../lib/cache'
 import { SkeletonBlock, rowBg } from '../components/Skeleton'
 
 export default function Subjects() {
@@ -14,7 +15,7 @@ export default function Subjects() {
   const [editName, setEditName] = useState('')
 
   useEffect(() => {
-    api.get('/settings/classes').then(r => setClasses(r.data.classes || [])).catch(() => {})
+    getCachedClasses(api).then(setClasses).catch(() => {})
   }, [])
 
   useEffect(() => { fetchSubjects() }, [selectedClass])
