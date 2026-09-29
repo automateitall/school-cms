@@ -35,6 +35,10 @@ export default function Students() {
   const [selectedClass, setSelectedClass] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
   const [showAll, setShowAll] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState(null)
+  const [deleteSummary, setDeleteSummary] = useState(null)
+  const [deleteConfirmText, setDeleteConfirmText] = useState('')
+  const [deleting, setDeleting] = useState(false)
   const navigate = useNavigate()
 
   const fetchStudents = async (all = showAll) => {
@@ -66,13 +70,36 @@ export default function Students() {
     fetchStudents(showAll)
   }, [showAll])
 
-  const handleDelete = async (id) => {
-    if (!confirm('Delete this student?')) return
+  const handleDeleteClick = async (student) => {
     try {
-      await api.delete(`/students/${id}`)
+      const res = await api.get(`/students/${student.id}/summary`)
+      setDeleteSummary(res.data)
+      setDeleteTarget(student)
+      setDeleteConfirmText('')
+    } catch (err) {
+      console.error(err)
+      alert('Failed to load student data. Please try again.')
+    }
+  }
+
+  const closeDeleteDialog = () => {
+    setDeleteTarget(null)
+    setDeleteSummary(null)
+    setDeleteConfirmText('')
+  }
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return
+    setDeleting(true)
+    try {
+      await api.delete(`/students/${deleteTarget.id}`)
+      closeDeleteDialog()
       fetchStudents()
     } catch (err) {
       console.error(err)
+      alert('Failed to delete student. Please try again.')
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -154,6 +181,54 @@ export default function Students() {
         />
       )}
 
+      {deleteTarget && deleteSummary && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={closeDeleteDialog}>
+          <div className="bg-white rounded-xl p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
+            {(deleteSummary.marksCount > 0 || deleteSummary.attendanceCount > 0) ? (
+              <>
+                <div style={{ background: '#ffeaea', color: '#e53e3e' }} className="rounded-lg px-4 py-3 text-sm mb-4">
+                  ⚠️ This student has {deleteSummary.marksCount} marks records and {deleteSummary.attendanceCount} attendance records. Deleting will permanently remove ALL their data. This cannot be undone. Type DELETE to confirm.
+                </div>
+                <input
+                  type="text"
+                  value={deleteConfirmText}
+                  onChange={e => setDeleteConfirmText(e.target.value)}
+                  placeholder="Type DELETE to confirm"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none mb-4"
+                  autoFocus
+                />
+                <div className="flex gap-3">
+                  <button onClick={confirmDelete} disabled={deleteConfirmText !== 'DELETE' || deleting}
+                    style={{ background: '#e53e3e' }}
+                    className="text-white px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-40 transition">
+                    {deleting ? 'Deleting...' : 'Delete Permanently'}
+                  </button>
+                  <button onClick={closeDeleteDialog}
+                    className="px-4 py-2 rounded-lg text-sm font-medium border border-gray-300 text-gray-600 hover:bg-gray-50 transition">
+                    Cancel
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="text-sm text-gray-700 mb-4">Delete {deleteTarget.name}? This cannot be undone.</p>
+                <div className="flex gap-3">
+                  <button onClick={confirmDelete} disabled={deleting}
+                    style={{ background: '#e53e3e' }}
+                    className="text-white px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-50 transition">
+                    {deleting ? 'Deleting...' : 'Delete'}
+                  </button>
+                  <button onClick={closeDeleteDialog}
+                    className="px-4 py-2 rounded-lg text-sm font-medium border border-gray-300 text-gray-600 hover:bg-gray-50 transition">
+                    Cancel
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
         {loading ? (
           <table className="w-full text-sm">
@@ -219,7 +294,7 @@ export default function Students() {
                         className="text-amber-500 hover:text-amber-700 text-xs transition">
                         Edit
                       </button>
-                      <button onClick={() => handleDelete(s.id)}
+                      <button onClick={() => handleDeleteClick(s)}
                         className="text-red-400 hover:text-red-600 text-xs transition">
                         Delete
                       </button>
