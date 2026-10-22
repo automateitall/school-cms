@@ -26,6 +26,7 @@ export const ANSWER_STYLES = [
 export const PART_LABEL_STYLES = [
   { value: 'roman', label: '(i) (ii) (iii)' },
   { value: 'letters', label: '(a) (b) (c)' },
+  { value: 'numbers', label: '1 2 3' },
 ]
 
 export const MATCH_STYLES = [
@@ -60,7 +61,15 @@ export const IMAGE_SIZES = [
 export const settingValue = (list, value) => (value === list[0].value || value === '' ? undefined : value)
 
 const ROMAN = ['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', 'viii', 'ix', 'x']
-export const partLabel = (style, i) => `(${style === 'letters' ? String.fromCharCode(97 + i) : ROMAN[i] || i + 1})`
+export const partLabel = (style, i) => {
+  if (style === 'numbers') return `${i + 1}.`
+  return `(${style === 'letters' ? String.fromCharCode(97 + i) : ROMAN[i] || i + 1})`
+}
+
+// Lines printed under a sub-part with answer style "lines" (the question type is not used for groups).
+export const PART_ANSWER_LINES = 3
+
+const PART_GROUP_KEYS = ['parts', 'partLabelStyle', 'showPartMarks']
 
 export const isItemUsed = isOptionUsed
 
@@ -132,7 +141,7 @@ const toSavedMatch = (q) => {
     return ri === -1 ? null : ri
   })
   return {
-    ...omit(q, ['parts', 'partLabelStyle', ...MCQ_KEYS]),
+    ...omit(q, [...PART_GROUP_KEYS, ...MCQ_KEYS]),
     leftItems: usedLeft.map(toItem),
     rightItems: usedRight.map(toItem),
     marksPerPair: num(q.marksPerPair),
@@ -161,7 +170,7 @@ export const toSavedQuestion = (q) => {
       marks: questionMarks(q),
     }
   }
-  const base = omit(q, ['parts', 'partLabelStyle', ...MATCH_KEYS])
+  const base = omit(q, [...PART_GROUP_KEYS, ...MATCH_KEYS])
   if (q.type === 'MCQ') return toSavedMcq(base)
   return base
 }

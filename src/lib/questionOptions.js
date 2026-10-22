@@ -8,6 +8,7 @@ export const MAX_OPTION_ROWS = 6
 
 export const OPTION_MARKERS = [
   { value: 'letters', label: 'Letters (a) (b) (c)' },
+  { value: 'letterDot', label: 'Letters a. b. c.' },
   { value: 'circle', label: 'Empty circle' },
 ]
 

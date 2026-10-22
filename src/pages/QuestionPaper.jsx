@@ -143,7 +143,7 @@ export default function QuestionPaper() {
     const patch = { type, ...typeFields(type) }
     // Leaving a calculated-marks shape keeps its current total as the typed marks.
     if (q.type === 'match' || (hasParts(q) && !canHaveParts(type))) patch.marks = questionMarks(q)
-    if (!canHaveParts(type)) Object.assign(patch, { parts: undefined, partLabelStyle: undefined })
+    if (!canHaveParts(type)) Object.assign(patch, { parts: undefined, partLabelStyle: undefined, showPartMarks: undefined })
     return patch
   })
 
@@ -412,13 +412,16 @@ export default function QuestionPaper() {
                     </div>
 
                     <div className="grid grid-cols-2 gap-3 mb-3">
-                      <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-1">Question Type</label>
-                        <select value={q.type} onChange={e => changeQuestionType(si, qi, e.target.value)}
-                          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none">
-                          {QUESTION_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-                        </select>
-                      </div>
+                      {/* A group's answers are set per part, so the question type is ignored and hidden. */}
+                      {!hasParts(q) && (
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">Question Type</label>
+                          <select value={q.type} onChange={e => changeQuestionType(si, qi, e.target.value)}
+                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none">
+                            {QUESTION_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                          </select>
+                        </div>
+                      )}
                       <div>
                         <label className="block text-xs font-medium text-gray-600 mb-1">Marks</label>
                         {q.type === 'match' || hasParts(q) ? (

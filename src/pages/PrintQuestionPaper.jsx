@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import api from '../lib/api'
 import { normalizeOptions, isOptionUsed, optionLetter } from '../lib/questionOptions'
-import { hasParts, isItemUsed, partLabel, questionMarks } from '../lib/questionModel'
+import { PART_ANSWER_LINES, hasParts, isItemUsed, partLabel, questionMarks } from '../lib/questionModel'
 
 const FONT_STACK = "'Noto Sans Devanagari', Arial, sans-serif"
 const FONT_HREF = 'https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;500;700&display=swap'
@@ -74,6 +74,7 @@ function OptionMarker({ marker, index }) {
   if (marker === 'circle') {
     return <span style={{ display: 'inline-block', width: 16, height: 16, border: '1.5px solid #1e293b', borderRadius: '50%', flexShrink: 0, boxSizing: 'border-box', marginTop: 1 }} />
   }
+  if (marker === 'letterDot') return <span style={{ flexShrink: 0 }}>{optionLetter(index)}.</span>
   return <span style={{ flexShrink: 0 }}>({optionLetter(index)})</span>
 }
 
@@ -111,7 +112,7 @@ function AnswerLines({ count, style }) {
 }
 
 // ---- sub-parts ----
-function SubPart({ part, label, lineCount }) {
+function SubPart({ part, label, showMarks }) {
   const answerStyle = part.answerStyle || 'lines'
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginTop: 8, marginLeft: 20 }}>
@@ -125,12 +126,12 @@ function SubPart({ part, label, lineCount }) {
             style={{ ...imageSizeStyle(part.imageSize, MEDIUM_IMAGE, 'calc(100% - 20px)'), display: 'block', marginTop: 6, marginLeft: 20 }} />
         )}
         {answerStyle === 'options' && <McqOptions owner={part} />}
-        {answerStyle === 'lines' && <AnswerLines count={lineCount} style={{ marginLeft: 20, marginTop: 8 }} />}
+        {answerStyle === 'lines' && <AnswerLines count={PART_ANSWER_LINES} style={{ marginLeft: 20, marginTop: 8 }} />}
         {answerStyle === 'box' && (
           <div style={{ marginLeft: 20, marginTop: 8, height: 70, border: '1px solid #94a3b8', borderRadius: 2 }} />
         )}
       </div>
-      <div style={{ fontSize: 12, color: '#64748b', whiteSpace: 'nowrap' }}>[{part.marks}]</div>
+      {showMarks && <div style={{ fontSize: 12, color: '#64748b', whiteSpace: 'nowrap' }}>[{part.marks}]</div>}
     </div>
   )
 }
@@ -311,7 +312,7 @@ export default function PrintQuestionPaper() {
                       <MatchBlock q={q} />
                     ) : withParts ? (
                       q.parts.map((part, pi) => (
-                        <SubPart key={pi} part={part} label={partLabel(q.partLabelStyle, pi)} lineCount={answerLineCount(q.type)} />
+                        <SubPart key={pi} part={part} label={partLabel(q.partLabelStyle, pi)} showMarks={q.showPartMarks !== false} />
                       ))
                     ) : (
                       <>

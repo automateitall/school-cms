@@ -26,15 +26,20 @@ export default function PartsEditor({ q, onChange }) {
   // Removing the last part turns this back into a normal question that needs its own marks.
   const removePart = (pi) => onChange(cur => cur.parts.length > 1
     ? { parts: cur.parts.filter((_, k) => k !== pi) }
-    : { parts: undefined, partLabelStyle: undefined, marks: '' })
+    : { parts: undefined, partLabelStyle: undefined, showPartMarks: undefined, marks: '' })
 
   const addPart = () => onChange(cur =>
     cur.parts.length < MAX_PARTS ? { parts: [...cur.parts, emptyPart()] } : {})
 
   return (
     <div className="mb-3 border-l-2 pl-3" style={{ borderColor: '#e8f0fb' }}>
-      <div className="flex items-center justify-between mb-2">
+      <div className="flex items-center justify-between gap-3 mb-2 flex-wrap">
         <label className="text-xs font-medium text-gray-600">Sub-parts</label>
+        <label className="flex items-center gap-1 text-xs text-gray-600 ml-auto">
+          <input type="checkbox" checked={q.showPartMarks !== false}
+            onChange={e => onChange({ showPartMarks: e.target.checked ? undefined : false })} />
+          Show marks next to each part
+        </label>
         <label className="flex items-center gap-1 text-xs text-gray-600">
           Part label style
           <select value={q.partLabelStyle || 'roman'}
