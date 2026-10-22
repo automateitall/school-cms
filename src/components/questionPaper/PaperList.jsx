@@ -66,7 +66,8 @@ function CopyDialog({ subject, className, onPick, onClose }) {
 
 // The "All papers" screen. onOpen(subjectName, paper, { copyFrom, openImport }) opens the builder.
 export default function PaperList({ classes, examTypes, selectedClass, setSelectedClass, selectedExamType, setSelectedExamType, onOpen }) {
-  const key = `${selectedClass}|${selectedExamType}`
+  const [reloads, setReloads] = useState(0)
+  const key = `${selectedClass}|${selectedExamType}|${reloads}`
   const [data, setData] = useState({ key: '', subjects: [], papers: [] })
   const loading = data.key !== key
   const { subjects, papers } = data
@@ -92,6 +93,19 @@ export default function PaperList({ classes, examTypes, selectedClass, setSelect
   const drafts = rows.filter(r => r.state === 'draft')
   const fresh = rows.filter(r => r.state === 'new')
   const pct = (n) => (rows.length ? (n / rows.length) * 100 : 0)
+
+  const open = (subjectName, paper, extra = {}) => onOpen(subjectName, paper, { ...extra, subjects: subjects.map(s => s.name) })
+
+  const deletePaper = async (r) => {
+    if (!window.confirm(`Delete the ${r.subject} paper for ${selectedClass} · ${selectedExamType}? This cannot be undone.`)) return
+    try {
+      await api.delete(`/question-papers/${r.paper.id}`)
+      setReloads(n => n + 1)
+    } catch (err) {
+      console.error(err)
+      window.alert('Could not delete the paper. Please try again.')
+    }
+  }
 
   const printAll = () => window.open(`/print/question-papers?ids=${ready.map(r => r.paper.id).join(',')}`, '_blank')
 
@@ -166,7 +180,8 @@ export default function PaperList({ classes, examTypes, selectedClass, setSelect
                       </div>
                       <div className="text-[14px] text-slate-600">{m} of {maxMarks} marks · edited {when(r.paper.updatedAt)}</div>
                       <div className="h-2 bg-slate-200 rounded-full overflow-hidden"><div className="h-full" style={{ width: `${Math.min(100, maxMarks ? (m / maxMarks) * 100 : 0)}%`, background: ORANGE }} /></div>
-                      <Btn tone="navy" className="min-h-[48px] text-[16px] font-semibold" onClick={() => onOpen(r.subject, r.paper)}>Continue</Btn>
+                      <Btn tone="navy" className="min-h-[48px] text-[16px] font-semibold" onClick={() => open(r.subject, r.paper)}>Continue</Btn>
+                      <Btn tone="danger" className="min-h-[40px] text-[14px]" onClick={() => deletePaper(r)}>Delete this paper</Btn>
                     </div>
                   )
                 })}
@@ -176,10 +191,10 @@ export default function PaperList({ classes, examTypes, selectedClass, setSelect
                       <h3 className="m-0 text-[19px] font-semibold text-slate-900 mr-auto">{r.subject}</h3>
                       <span className="text-[13px] font-semibold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600">Not started</span>
                     </div>
-                    <Btn tone="navy" className="min-h-[48px] text-[16px] font-semibold" onClick={() => onOpen(r.subject, null)}>Start new paper</Btn>
+                    <Btn tone="navy" className="min-h-[48px] text-[16px] font-semibold" onClick={() => open(r.subject, null)}>Start new paper</Btn>
                     <div className="grid grid-cols-2 gap-2">
                       <Btn tone="link" className="min-h-[44px] text-[14px] font-semibold" onClick={() => setCopyFor(r.subject)}>Copy earlier paper</Btn>
-                      <Btn tone="link" className="min-h-[44px] text-[14px] font-semibold" onClick={() => onOpen(r.subject, null, { openImport: true })}>Upload PDF / Word</Btn>
+                      <Btn tone="link" className="min-h-[44px] text-[14px] font-semibold" onClick={() => open(r.subject, null, { openImport: true })}>Upload PDF / Word</Btn>
                     </div>
                   </div>
                 ))}
@@ -197,8 +212,9 @@ export default function PaperList({ classes, examTypes, selectedClass, setSelect
                     <span className="text-[18px] font-semibold text-slate-900 flex-[1_1_140px]">{r.subject}</span>
                     <span className="text-[14px] text-slate-600">{paperMarks(r.paper)} marks · finished {when(r.paper.updatedAt)}</span>
                     <Btn tone="navy" style={{ background: GREEN, borderColor: GREEN }} onClick={() => window.open(`/print/question-paper/${r.paper.id}`, '_blank')}>Print</Btn>
-                    <Btn onClick={() => onOpen(r.subject, r.paper)}>Edit</Btn>
+                    <Btn onClick={() => open(r.subject, r.paper)}>Edit</Btn>
                     <Btn onClick={() => window.open(`/print/question-paper/${r.paper.id}?key=1`, '_blank')}>Answer key</Btn>
+                    <Btn tone="danger" onClick={() => deletePaper(r)}>Delete</Btn>
                   </div>
                 ))}
               </div>
@@ -209,7 +225,7 @@ export default function PaperList({ classes, examTypes, selectedClass, setSelect
 
       {copyFor && (
         <CopyDialog subject={copyFor} className={selectedClass} onClose={() => setCopyFor(null)}
-          onPick={(p) => { const s = copyFor; setCopyFor(null); onOpen(s, null, { copyFrom: p.sections }) }} />
+          onPick={(p) => { const s = copyFor; setCopyFor(null); open(s, null, { copyFrom: p.sections }) }} />
       )}
     </div>
   )

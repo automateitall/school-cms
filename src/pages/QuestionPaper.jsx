@@ -38,6 +38,7 @@ export default function QuestionPaper() {
           info={{
             className: selectedClass, examType: selectedExamType, maxMarks: exam?.maxMarks || 0,
             subject: editing.subject, paper: editing.paper, copyFrom: editing.copyFrom, openImport: editing.openImport,
+            subjects: editing.subjects,
           }}
           onBack={() => setEditing(null)} />
       ) : (

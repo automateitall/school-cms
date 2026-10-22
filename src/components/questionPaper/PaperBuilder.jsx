@@ -30,9 +30,11 @@ const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`
 // Fresh copy of a question (new ids for match items).
 const cloneQuestion = (q) => toEditableQuestion(toSavedQuestion(q))
 
-// info: { className, examType, maxMarks, subject, paper } (paper is the saved record, or null for a new one).
+// info: { className, examType, maxMarks, subject, paper, subjects } (paper is the saved record, or null for a new one;
+// subjects: the class's subject names, for moving a paper entered under the wrong subject).
 export default function PaperBuilder({ info, onBack }) {
-  const { className, examType, maxMarks, subject } = info
+  const { className, examType, maxMarks } = info
+  const [subject, setSubject] = useState(info.subject)
   usePaperFont()
   const source = info.paper?.sections || info.copyFrom // copyFrom: sections of an earlier paper to start from
   const initialSettings = readPaperSettings(source)
@@ -57,7 +59,7 @@ export default function PaperBuilder({ info, onBack }) {
   const settings = useMemo(() => ({ lang, examTitle: examTitle.trim() || undefined }), [lang, examTitle])
 
   // ---- saving: every change is saved a moment later ----
-  const current = { paperId, status, date, time, sections, settings, totalMarks }
+  const current = { paperId, status, date, time, sections, settings, totalMarks, subject }
   const latest = useRef(current)
   useLayoutEffect(() => { latest.current = current })
   const chain = useRef(Promise.resolve())
@@ -70,8 +72,8 @@ export default function PaperBuilder({ info, onBack }) {
   const payload = (st) => {
     const cur = latest.current
     return {
-      title: `${className} — ${subject} — ${examType}`,
-      subject, class: className, examType,
+      title: `${className} — ${cur.subject} — ${examType}`,
+      subject: cur.subject, class: className, examType,
       maxMarks: String(maxMarks), time: cur.time, date: cur.date,
       sections: toSavedSections(cur.sections, cur.settings),
       status: st,
@@ -102,7 +104,7 @@ export default function PaperBuilder({ info, onBack }) {
     })
     return chain.current
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [className, subject, examType, maxMarks])
+  }, [className, examType, maxMarks])
 
   useEffect(() => {
     if (snapshot(latest.current) === savedSnapshot.current) return
@@ -117,6 +119,26 @@ export default function PaperBuilder({ info, onBack }) {
     window.addEventListener('beforeunload', warn)
     return () => window.removeEventListener('beforeunload', warn)
   }, [saveState])
+
+  // Move a paper entered under the wrong subject. Refused when that subject already has a paper for this exam.
+  const moveTo = async (target) => {
+    if (!target || target === subject) return
+    if (!window.confirm(`Move this paper from ${subject} to ${target}?`)) return
+    try {
+      const res = await api.get(`/question-papers?class=${encodeURIComponent(className)}&examType=${encodeURIComponent(examType)}&subject=${encodeURIComponent(target)}`)
+      if (res.data.some(p => p.id !== latest.current.paperId)) {
+        window.alert(`${target} already has a ${examType} paper for ${className}. Go back to All papers and delete that one first (or move it), then try again.`)
+        return
+      }
+    } catch (err) {
+      console.error(err)
+      window.alert('Could not check that subject. Please check the internet and try again.')
+      return
+    }
+    setSubject(target)
+    latest.current = { ...latest.current, subject: target }
+    if (latest.current.paperId || saveState !== 'new') await saveNow()
+  }
 
   const goBack = async () => {
     if (saveState === 'unsaved' || saveState === 'saving') await saveNow()
@@ -263,6 +285,14 @@ export default function PaperBuilder({ info, onBack }) {
 
           {/* Paper details */}
           <div className="bg-white border border-slate-200 rounded-xl p-4 grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))' }}>
+            {info.subjects?.length > 1 && (
+              <label className="flex flex-col gap-1 text-sm text-slate-600">
+                Subject
+                <select value={subject} onChange={e => moveTo(e.target.value)} className={selectCls}>
+                  {[...new Set([subject, ...info.subjects])].map(n => <option key={n} value={n}>{n}</option>)}
+                </select>
+              </label>
+            )}
             <label className="flex flex-col gap-1 text-sm text-slate-600">
               Date
               <input type="text" value={date} onChange={e => setDate(e.target.value)} className={`${inputCls} min-h-[44px] py-0 text-[16px]`} />
