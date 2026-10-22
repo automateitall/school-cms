@@ -187,6 +187,20 @@ export default function PaperBuilder({ info, onBack }) {
     setQuestions(list => [...list.slice(0, qi + 1), cloneQuestion(list[qi]), ...list.slice(qi + 1)])
     setOpenQ(qi + 1)
   }
+  // Move a question to the end of another section, and follow it there.
+  const moveToSection = (qi, target) => {
+    if (target === active) return
+    const q = section.questions[qi]
+    const newIndex = sections[target].questions.length
+    setSections(prev => prev.map((s, i) => {
+      if (i === active) return { ...s, questions: s.questions.filter((_, j) => j !== qi) }
+      if (i === target) return { ...s, questions: [...s.questions, q] }
+      return s
+    }))
+    setActive(target)
+    setOpenQ(newIndex)
+  }
+
   const splitGroup = (qi) => {
     if (!window.confirm('Make each sub-question a separate question? The instruction and passage will be removed.')) return
     setQuestions(list => [...list.slice(0, qi), ...list[qi].parts.map(p => ({ ...p, _untyped: undefined })), ...list.slice(qi + 1)])
@@ -368,7 +382,9 @@ export default function PaperBuilder({ info, onBack }) {
                   onMove={dir => moveQuestion(qi, dir)}
                   onCopy={() => copyQuestion(qi)}
                   onDelete={() => removeQuestion(qi)}
-                  onSplit={() => splitGroup(qi)} />
+                  onSplit={() => splitGroup(qi)}
+                  sectionNames={sections.map(s => s.name)} activeSection={active}
+                  onMoveSection={target => moveToSection(qi, target)} />
               ) : (
                 <CollapsedQuestion key={qi} q={q} qi={qi} onOpen={() => setOpenQ(qi)} />
               )
@@ -459,7 +475,7 @@ function CollapsedQuestion({ q, qi, onOpen }) {
   )
 }
 
-function OpenQuestion({ q, qi, count, lang, defaultMarks, focusKey, onChange, onClose, onMove, onCopy, onDelete, onSplit }) {
+function OpenQuestion({ q, qi, count, lang, defaultMarks, focusKey, onChange, onClose, onMove, onCopy, onDelete, onSplit, sectionNames, activeSection, onMoveSection }) {
   const ref = useRef(null)
   useEffect(() => {
     ref.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
@@ -475,6 +491,11 @@ function OpenQuestion({ q, qi, count, lang, defaultMarks, focusKey, onChange, on
         <IconBtn icon="arrowUp" label="Move up" disabled={qi === 0} onClick={() => onMove(-1)} />
         <IconBtn icon="arrowDown" label="Move down" disabled={qi === count - 1} onClick={() => onMove(1)} />
         <Btn onClick={onCopy}><Icon name="copy" /> Copy</Btn>
+        <select value="" aria-label="Move this question to another section" className={selectCls}
+          onChange={e => e.target.value !== '' && onMoveSection(Number(e.target.value))}>
+          <option value="">Move to section…</option>
+          {sectionNames.map((name, i) => i === activeSection ? null : <option key={name} value={i}>Section {name}</option>)}
+        </select>
         {group && <Btn onClick={onSplit}>Make separate questions</Btn>}
         <Btn tone="danger" onClick={onDelete}><Icon name="trash" /> Delete</Btn>
         <IconBtn icon="up" label="Close this question" onClick={onClose} />
