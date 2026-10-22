@@ -3,18 +3,39 @@ import Layout from '../components/layout/Layout'
 import api from '../lib/api'
 import { getCachedClasses } from '../lib/cache'
 import { SkeletonBlock, rowBg } from '../components/Skeleton'
+import {
+  MIN_OPTION_ROWS, MAX_OPTION_ROWS, OPTION_MARKERS, OPTION_LAYOUTS,
+  emptyOption, isOptionUsed, optionLetter, toEditableMcq, toSavedMcq,
+} from '../lib/questionOptions'
 
 const QUESTION_TYPES = ['MCQ', 'Short Answer', 'Long Answer', 'Fill in the blank']
 const SECTION_NAMES = ['A', 'B', 'C']
+
+const mcqFields = (type) => type === 'MCQ' ? {
+  options: Array.from({ length: MIN_OPTION_ROWS }, emptyOption),
+  correctAnswer: null,
+  optionMarker: 'letters',
+  optionLayout: 'grid',
+} : {
+  options: undefined,
+  correctAnswer: undefined,
+  optionMarker: undefined,
+  optionLayout: undefined,
+}
 
 const emptyQuestion = (type = 'Short Answer') => ({
   type,
   text: '',
   marks: 1,
   imageUrl: '',
-  options: type === 'MCQ' ? { a: '', b: '', c: '', d: '' } : undefined,
-  correctAnswer: type === 'MCQ' ? 'a' : undefined,
+  ...mcqFields(type),
 })
+
+// Map every MCQ question in a list of sections through fn.
+const mapMcqs = (sections, fn) => sections.map(s => ({
+  ...s,
+  questions: (s.questions || []).map(q => q.type === 'MCQ' ? fn(q) : q),
+}))
 
 const emptySections = () => SECTION_NAMES.map(name => ({ name, questions: [] }))
 
@@ -89,7 +110,7 @@ export default function QuestionPaper() {
       setEditingId(existingPaper.id)
       setDate(existingPaper.date || new Date().toLocaleDateString('en-IN'))
       setTime(existingPaper.time || '3 Hours')
-      setSections(existingPaper.sections?.length ? existingPaper.sections : emptySections())
+      setSections(existingPaper.sections?.length ? mapMcqs(existingPaper.sections, toEditableMcq) : emptySections())
     } else {
       setEditingId(null)
       setDate(new Date().toLocaleDateString('en-IN'))
@@ -121,11 +142,30 @@ export default function QuestionPaper() {
   }
 
   const changeQuestionType = (si, qi, type) => {
-    updateQuestion(si, qi, {
-      type,
-      options: type === 'MCQ' ? { a: '', b: '', c: '', d: '' } : undefined,
-      correctAnswer: type === 'MCQ' ? 'a' : undefined,
-    })
+    updateQuestion(si, qi, { type, ...mcqFields(type) })
+  }
+
+  const updateOption = (si, qi, oi, patch) => {
+    setSections(prev => prev.map((s, i) => {
+      if (i !== si) return s
+      const questions = s.questions.map((q, j) => {
+        if (j !== qi) return q
+        const options = q.options.map((o, k) => k === oi ? { ...o, ...patch } : o)
+        // An option that becomes unused can no longer be the correct answer.
+        const correctAnswer = q.correctAnswer === oi && !isOptionUsed(options[oi]) ? null : q.correctAnswer
+        return { ...q, options, correctAnswer }
+      })
+      return { ...s, questions }
+    }))
+  }
+
+  const addOption = (si, qi) => {
+    setSections(prev => prev.map((s, i) => {
+      if (i !== si) return s
+      const questions = s.questions.map((q, j) =>
+        j === qi && q.options.length < MAX_OPTION_ROWS ? { ...q, options: [...q.options, emptyOption()] } : q)
+      return { ...s, questions }
+    }))
   }
 
   const removeQuestion = (si, qi) => {
@@ -143,9 +183,8 @@ export default function QuestionPaper() {
     }))
   }
 
-  const handleImageUpload = async (si, qi, file) => {
+  const uploadImage = async (key, file, onUploaded) => {
     if (!file) return
-    const key = `${si}-${qi}`
     setUploadingKey(key)
     try {
       const formData = new FormData()
@@ -154,7 +193,7 @@ export default function QuestionPaper() {
       const res = await api.post('/gallery/upload-single', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       })
-      updateQuestion(si, qi, { imageUrl: res.data.url })
+      onUploaded(res.data.url)
     } catch (err) {
       console.error(err)
       alert('Image upload failed. Please try again.')
@@ -162,6 +201,12 @@ export default function QuestionPaper() {
       setUploadingKey(null)
     }
   }
+
+  const handleImageUpload = (si, qi, file) =>
+    uploadImage(`${si}-${qi}`, file, url => updateQuestion(si, qi, { imageUrl: url }))
+
+  const handleOptionImageUpload = (si, qi, oi, file) =>
+    uploadImage(`${si}-${qi}-${oi}`, file, url => updateOption(si, qi, oi, { imageUrl: url }))
 
   const sectionMarks = (s) => s.questions.reduce((sum, q) => sum + (parseFloat(q.marks) || 0), 0)
   const totalMarks = useMemo(() => sections.reduce((sum, s) => sum + sectionMarks(s), 0), [sections])
@@ -177,7 +222,7 @@ export default function QuestionPaper() {
     maxMarks: String(maxMarks),
     time,
     date,
-    sections,
+    sections: mapMcqs(sections, toSavedMcq),
     status,
   })
 
@@ -434,25 +479,87 @@ export default function QuestionPaper() {
                         placeholder="Type your question here..." />
                     </div>
 
-                    {q.type === 'MCQ' && (
-                      <div className="mb-3">
-                        <label className="block text-xs font-medium text-gray-600 mb-2">Options</label>
-                        <div className="grid grid-cols-2 gap-2">
-                          {['a', 'b', 'c', 'd'].map(opt => (
-                            <div key={opt} className="flex items-center gap-2">
-                              <input type="radio" name={`correct-${si}-${qi}`} checked={q.correctAnswer === opt}
-                                onChange={() => updateQuestion(si, qi, { correctAnswer: opt })} />
-                              <span className="text-xs text-gray-500 w-4">{opt})</span>
-                              <input type="text" value={q.options?.[opt] || ''}
-                                onChange={e => updateQuestion(si, qi, { options: { ...q.options, [opt]: e.target.value } })}
-                                className="flex-1 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none"
-                                placeholder={`Option ${opt.toUpperCase()}`} />
+                    {q.type === 'MCQ' && (() => {
+                      // Used options are relabelled in order, matching how they are saved and printed.
+                      const used = q.options.map((o, oi) => ({ o, oi })).filter(({ o }) => isOptionUsed(o))
+                      return (
+                        <div className="mb-3">
+                          <label className="block text-xs font-medium text-gray-600 mb-2">Options</label>
+                          <div className="flex flex-col gap-2">
+                            {q.options.map((opt, oi) => {
+                              const key = `${si}-${qi}-${oi}`
+                              return (
+                                <div key={oi} className="flex items-center gap-2">
+                                  <span className="text-xs text-gray-500 w-6">{oi + 1}.</span>
+                                  <input type="text" value={opt.text}
+                                    onChange={e => updateOption(si, qi, oi, { text: e.target.value })}
+                                    className="flex-1 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none"
+                                    placeholder={`Option ${oi + 1}`} />
+                                  <label className="cursor-pointer">
+                                    <input type="file" accept="image/*" className="hidden"
+                                      onChange={e => { handleOptionImageUpload(si, qi, oi, e.target.files[0]); e.target.value = '' }} />
+                                    <span style={{ background: '#e8f0fb', color: '#083e78' }}
+                                      className="px-2 py-1.5 rounded text-xs font-medium inline-block whitespace-nowrap">
+                                      {uploadingKey === key ? 'Uploading...' : opt.imageUrl ? 'Change image' : '+ Add image'}
+                                    </span>
+                                  </label>
+                                  {opt.imageUrl && (
+                                    <div className="relative flex-shrink-0">
+                                      <img src={opt.imageUrl} alt={`option ${oi + 1}`}
+                                        className="h-10 w-10 object-contain rounded border border-gray-200 bg-white" />
+                                      <button type="button" onClick={() => updateOption(si, qi, oi, { imageUrl: '' })}
+                                        title="Remove image"
+                                        className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-red-500 text-white text-[10px] leading-4 text-center hover:bg-red-600">
+                                        ×
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              )
+                            })}
+                          </div>
+                          {q.options.length < MAX_OPTION_ROWS && (
+                            <button type="button" onClick={() => addOption(si, qi)}
+                              style={{ color: '#083e78' }} className="text-xs font-medium hover:opacity-80 mt-2">
+                              + Add option
+                            </button>
+                          )}
+                          <p className="text-xs text-gray-400 mt-1">Options with no text and no image are not saved.</p>
+
+                          <div className="grid grid-cols-3 gap-3 mt-3">
+                            <div>
+                              <label className="block text-xs font-medium text-gray-600 mb-1">Correct Answer</label>
+                              <select value={q.correctAnswer ?? ''}
+                                onChange={e => updateQuestion(si, qi, { correctAnswer: e.target.value === '' ? null : Number(e.target.value) })}
+                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none">
+                                <option value="">Select</option>
+                                {used.map(({ o, oi }, ui) => (
+                                  <option key={oi} value={oi}>
+                                    ({optionLetter(ui)}) {o.text.trim() || '[image]'}
+                                  </option>
+                                ))}
+                              </select>
                             </div>
-                          ))}
+                            <div>
+                              <label className="block text-xs font-medium text-gray-600 mb-1">Option Marker</label>
+                              <select value={q.optionMarker || 'letters'}
+                                onChange={e => updateQuestion(si, qi, { optionMarker: e.target.value })}
+                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none">
+                                {OPTION_MARKERS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-gray-600 mb-1">Option Layout</label>
+                              <select value={q.optionLayout || 'grid'}
+                                onChange={e => updateQuestion(si, qi, { optionLayout: e.target.value })}
+                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none">
+                                {OPTION_LAYOUTS.map(l => <option key={l.value} value={l.value}>{l.label}</option>)}
+                              </select>
+                            </div>
+                          </div>
                         </div>
-                        <p className="text-xs text-gray-400 mt-1">Select the radio button next to the correct answer.</p>
-                      </div>
-                    )}
+                      )
+                    })()}
 
                     <div className="flex items-center gap-3">
                       <label className="text-xs font-medium text-gray-600 cursor-pointer">

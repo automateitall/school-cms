@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import api from '../lib/api'
+import { normalizeOptions, isOptionUsed, optionLetter } from '../lib/questionOptions'
+
+const FONT_STACK = "'Noto Sans Devanagari', Arial, sans-serif"
+const FONT_HREF = 'https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;500;700&display=swap'
 
 const INSTRUCTIONS = [
   'All questions are compulsory.',
@@ -14,6 +18,40 @@ const answerLineCount = (type) => {
   if (type === 'Long Answer') return 5
   if (type === 'Short Answer') return 3
   return 1
+}
+
+const OPTION_LAYOUT_STYLE = {
+  grid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 16px' },
+  row: { display: 'flex', flexWrap: 'nowrap', gap: 16 },
+  list: { display: 'flex', flexDirection: 'column', gap: 6 },
+}
+
+function OptionMarker({ marker, index }) {
+  if (marker === 'circle') {
+    return <span style={{ display: 'inline-block', width: 16, height: 16, border: '1.5px solid #1e293b', borderRadius: '50%', flexShrink: 0, boxSizing: 'border-box', marginTop: 1 }} />
+  }
+  return <span style={{ flexShrink: 0 }}>({optionLetter(index)})</span>
+}
+
+function McqOptions({ q }) {
+  const options = normalizeOptions(q).options.filter(isOptionUsed)
+  if (!options.length) return null
+  const layout = OPTION_LAYOUT_STYLE[q.optionLayout] || OPTION_LAYOUT_STYLE.grid
+  return (
+    <div style={{ ...layout, marginTop: 8, marginLeft: 20, fontSize: 12 }}>
+      {options.map((opt, i) => (
+        <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 6, flex: q.optionLayout === 'row' ? '1 1 0' : undefined, minWidth: 0 }}>
+          <OptionMarker marker={q.optionMarker} index={i} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
+            {opt.imageUrl && (
+              <img src={opt.imageUrl} alt="" style={{ maxHeight: 90, maxWidth: '100%', objectFit: 'contain', display: 'block', alignSelf: 'flex-start' }} />
+            )}
+            {opt.text && <div>{opt.text}</div>}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
 }
 
 export default function PrintQuestionPaper() {
@@ -66,18 +104,20 @@ export default function PrintQuestionPaper() {
   const sections = paper.sections || []
 
   return (
-    <div style={{ background: '#f0f4fa', minHeight: '100vh', padding: 24, fontFamily: 'Arial, sans-serif' }}>
+    <div style={{ background: '#f0f4fa', minHeight: '100vh', padding: 24, fontFamily: FONT_STACK }}>
+      <link rel="stylesheet" href={FONT_HREF} precedence="default" />
       <style>{`
         @media print {
           .no-print { display: none !important; }
           body { margin: 0; }
           .qp { border: none !important; box-shadow: none !important; }
+          .qp-question { break-inside: avoid; page-break-inside: avoid; }
         }
       `}</style>
 
       <div className="no-print" style={{ display: 'flex', justifyContent: 'flex-end', maxWidth: 800, margin: '0 auto 12px' }}>
         <button
-          onClick={() => window.print()}
+          onClick={() => document.fonts.ready.then(() => window.print())}
           style={{ background: '#083e78', color: 'white', padding: '8px 16px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 600 }}
         >
           Print / Save as PDF
@@ -124,7 +164,7 @@ export default function PrintQuestionPaper() {
             </div>
 
             {(section.questions || []).map((q, qi) => (
-              <div key={qi} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 16, pageBreakInside: 'avoid' }}>
+              <div key={qi} className="qp-question" style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 16, breakInside: 'avoid', pageBreakInside: 'avoid' }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 13, color: '#1e293b' }}>
                     <strong>{qi + 1}.</strong> {q.text}
@@ -134,13 +174,7 @@ export default function PrintQuestionPaper() {
                     <img src={q.imageUrl} alt="" style={{ maxWidth: 220, maxHeight: 160, marginTop: 8, marginLeft: 20, display: 'block' }} />
                   )}
 
-                  {q.type === 'MCQ' && (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 16px', marginTop: 8, marginLeft: 20, fontSize: 12 }}>
-                      {['a', 'b', 'c', 'd'].map(opt => (
-                        <div key={opt}>({opt}) {q.options?.[opt] || ''}</div>
-                      ))}
-                    </div>
-                  )}
+                  {q.type === 'MCQ' && <McqOptions q={q} />}
 
                   <div style={{ marginLeft: 20, marginTop: 10 }}>
                     {Array.from({ length: answerLineCount(q.type) }).map((_, li) => (
