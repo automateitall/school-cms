@@ -1,4 +1,4 @@
-import { MAX_OPTION_ROWS, OPTION_MARKERS, OPTION_LAYOUTS, emptyOption, isOptionUsed, optionLetter } from '../../lib/questionOptions'
+import { MAX_OPTION_ROWS, OPTION_MARKERS, OPTION_LABEL_FORMATS, OPTION_LAYOUTS, emptyOption, isOptionUsed, optionLetter } from '../../lib/questionOptions'
 import { resolvePatch } from '../../lib/questionModel'
 import ImageField from './ImageField'
 
@@ -44,7 +44,7 @@ export default function OptionsEditor({ owner, onChange }) {
       )}
       <p className="text-xs text-gray-400 mt-1">Options with no text and no image are not saved.</p>
 
-      <div className="grid grid-cols-3 gap-3 mt-3">
+      <div className="grid grid-cols-4 gap-3 mt-3">
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Correct Answer</label>
           <select value={owner.correctAnswer ?? ''}
@@ -64,6 +64,7 @@ export default function OptionsEditor({ owner, onChange }) {
             {OPTION_MARKERS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
           </select>
         </div>
+        <OptionLabelFormatField owner={owner} onChange={onChange} />
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Option Layout</label>
           <select value={owner.optionLayout || 'grid'}
@@ -73,6 +74,21 @@ export default function OptionsEditor({ owner, onChange }) {
           </select>
         </div>
       </div>
+    </div>
+  )
+}
+
+// Label format for letter markers: (a) / a. / a). Shared with the True/False editor.
+export function OptionLabelFormatField({ owner, onChange }) {
+  if ((owner.optionMarker || 'letters') !== 'letters') return <div />
+  return (
+    <div>
+      <label className="block text-xs font-medium text-gray-600 mb-1">Label Format</label>
+      <select value={owner.optionLabelFormat || '(a)'}
+        onChange={e => onChange({ optionLabelFormat: e.target.value })}
+        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none">
+        {OPTION_LABEL_FORMATS.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+      </select>
     </div>
   )
 }

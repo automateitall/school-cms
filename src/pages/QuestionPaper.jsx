@@ -3,38 +3,10 @@ import Layout from '../components/layout/Layout'
 import api from '../lib/api'
 import { getCachedClasses } from '../lib/cache'
 import { SkeletonBlock, rowBg } from '../components/Skeleton'
-import ImageField from '../components/questionPaper/ImageField'
-import AppearanceFields from '../components/questionPaper/AppearanceFields'
-import OptionsEditor from '../components/questionPaper/OptionsEditor'
-import PartsEditor from '../components/questionPaper/PartsEditor'
-import MatchEditor from '../components/questionPaper/MatchEditor'
-import {
-  QUESTION_TYPES, emptyPart, mcqInit, matchInit, questionMarks, hasParts, resolvePatch,
-  toEditableQuestion, toSavedQuestion, mapQuestions,
-} from '../lib/questionModel'
+import QuestionEditor from '../components/questionPaper/QuestionEditor'
+import { newQuestion, questionMarks, resolvePatch, toEditableQuestion, toSavedQuestion, mapQuestions } from '../lib/questionModel'
 
 const SECTION_NAMES = ['A', 'B', 'C']
-
-const CLEARED_TYPE_FIELDS = {
-  options: undefined, correctAnswer: undefined, optionMarker: undefined, optionLayout: undefined,
-  leftItems: undefined, rightItems: undefined, marksPerPair: undefined, matchStyle: undefined, correctMatch: undefined,
-}
-
-const typeFields = (type) => ({
-  ...CLEARED_TYPE_FIELDS,
-  ...(type === 'MCQ' ? mcqInit() : type === 'match' ? matchInit() : {}),
-})
-
-// Types whose answer is built in (options / pairs) can't also have sub-parts.
-const canHaveParts = (type) => type !== 'MCQ' && type !== 'match'
-
-const emptyQuestion = (type = 'Short Answer') => ({
-  type,
-  text: '',
-  marks: 1,
-  imageUrl: '',
-  ...typeFields(type),
-})
 
 const emptySections = () => SECTION_NAMES.map(name => ({ name, questions: [] }))
 
@@ -128,7 +100,7 @@ export default function QuestionPaper() {
   const toggleCollapsed = (si) => setCollapsed(c => ({ ...c, [si]: !c[si] }))
 
   const addQuestion = (si) => {
-    setSections(prev => prev.map((s, i) => i === si ? { ...s, questions: [...s.questions, emptyQuestion()] } : s))
+    setSections(prev => prev.map((s, i) => i === si ? { ...s, questions: [...s.questions, newQuestion()] } : s))
   }
 
   const updateQuestion = (si, qi, patch) => {
@@ -138,16 +110,6 @@ export default function QuestionPaper() {
       return { ...s, questions }
     }))
   }
-
-  const changeQuestionType = (si, qi, type) => updateQuestion(si, qi, q => {
-    const patch = { type, ...typeFields(type) }
-    // Leaving a calculated-marks shape keeps its current total as the typed marks.
-    if (q.type === 'match' || (hasParts(q) && !canHaveParts(type))) patch.marks = questionMarks(q)
-    if (!canHaveParts(type)) Object.assign(patch, { parts: undefined, partLabelStyle: undefined, showPartMarks: undefined })
-    return patch
-  })
-
-  const addSubParts = (si, qi) => updateQuestion(si, qi, { parts: [emptyPart()] })
 
   const removeQuestion = (si, qi) => {
     setSections(prev => prev.map((s, i) => i === si ? { ...s, questions: s.questions.filter((_, j) => j !== qi) } : s))
@@ -411,68 +373,7 @@ export default function QuestionPaper() {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3 mb-3">
-                      {/* A group's answers are set per part, so the question type is ignored and hidden. */}
-                      {!hasParts(q) && (
-                        <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">Question Type</label>
-                          <select value={q.type} onChange={e => changeQuestionType(si, qi, e.target.value)}
-                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none">
-                            {QUESTION_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-                          </select>
-                        </div>
-                      )}
-                      <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-1">Marks</label>
-                        {q.type === 'match' || hasParts(q) ? (
-                          <div className="w-full border border-gray-200 bg-gray-50 rounded-lg px-3 py-2 text-sm text-gray-700">
-                            {questionMarks(q)}
-                            <span className="text-xs text-gray-400 ml-2">
-                              {q.type === 'match' ? '(marks per pair × pairs)' : '(sum of sub-parts)'}
-                            </span>
-                          </div>
-                        ) : (
-                          <input type="number" value={q.marks}
-                            onChange={e => updateQuestion(si, qi, { marks: e.target.value === '' ? '' : parseFloat(e.target.value) })}
-                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none" />
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="mb-3">
-                      <label className="block text-xs font-medium text-gray-600 mb-1">
-                        {q.type === 'match' || hasParts(q) ? 'Instruction' : 'Question Text'}
-                      </label>
-                      <textarea value={q.text} rows={2}
-                        onChange={e => updateQuestion(si, qi, { text: e.target.value })}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none resize-none"
-                        placeholder={q.type === 'match' ? 'e.g. Match the following:' : hasParts(q) ? 'e.g. Answer the following:' : 'Type your question here...'} />
-                      <AppearanceFields value={q} onChange={patch => updateQuestion(si, qi, patch)} />
-                    </div>
-
-                    <div className="mb-3">
-                      <ImageField imageUrl={q.imageUrl} imageSize={q.imageSize} defaultSizeLabel="Default (as before)"
-                        onChange={patch => updateQuestion(si, qi, patch)} />
-                    </div>
-
-                    {q.type === 'MCQ' && q.options && (
-                      <OptionsEditor owner={q} onChange={patch => updateQuestion(si, qi, patch)} />
-                    )}
-
-                    {q.type === 'match' && q.leftItems && (
-                      <MatchEditor q={q} onChange={patch => updateQuestion(si, qi, patch)} />
-                    )}
-
-                    {hasParts(q) && (
-                      <PartsEditor q={q} onChange={patch => updateQuestion(si, qi, patch)} />
-                    )}
-
-                    {canHaveParts(q.type) && !hasParts(q) && (
-                      <button type="button" onClick={() => addSubParts(si, qi)}
-                        style={{ color: '#083e78' }} className="text-xs font-medium hover:opacity-80">
-                        + Add sub-parts
-                      </button>
-                    )}
+                    <QuestionEditor q={q} allowParts onChange={patch => updateQuestion(si, qi, patch)} />
                   </div>
                 ))}
 

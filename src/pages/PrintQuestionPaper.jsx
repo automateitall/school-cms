@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import api from '../lib/api'
 import { normalizeOptions, isOptionUsed, optionLetter } from '../lib/questionOptions'
-import { PART_ANSWER_LINES, hasParts, isItemUsed, partLabel, questionMarks } from '../lib/questionModel'
+import { PART_ANSWER_LINES, hasParts, isItemUsed, isUntypedPart, legacyPartType, partLabel, questionMarks } from '../lib/questionModel'
 
 const FONT_STACK = "'Noto Sans Devanagari', Arial, sans-serif"
 const FONT_HREF = 'https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;500;700&display=swap'
@@ -68,26 +68,32 @@ const OPTION_LAYOUT_STYLE = {
   grid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 16px' },
   row: { display: 'flex', flexWrap: 'nowrap', gap: 16 },
   list: { display: 'flex', flexDirection: 'column', gap: 6 },
+  // True/False labels: side by side, not stretched across the line.
+  inline: { display: 'flex', flexWrap: 'wrap', gap: '6px 40px' },
 }
 
-function OptionMarker({ marker, index }) {
+function OptionMarker({ marker, format, index }) {
   if (marker === 'circle') {
     return <span style={{ display: 'inline-block', width: 16, height: 16, border: '1.5px solid #1e293b', borderRadius: '50%', flexShrink: 0, boxSizing: 'border-box', marginTop: 1 }} />
   }
-  if (marker === 'letterDot') return <span style={{ flexShrink: 0 }}>{optionLetter(index)}.</span>
-  return <span style={{ flexShrink: 0 }}>({optionLetter(index)})</span>
+  const letter = optionLetter(index)
+  // 'letterDot' was briefly a marker of its own; papers saved with it print as they did.
+  if (marker === 'letterDot') return <span style={{ flexShrink: 0 }}>{letter}.</span>
+  if (format === 'a.') return <span style={{ flexShrink: 0, fontWeight: 700 }}>{letter}.</span>
+  if (format === 'a)') return <span style={{ flexShrink: 0 }}>{letter})</span>
+  return <span style={{ flexShrink: 0 }}>({letter})</span>
 }
 
 // owner is the question or sub-part; its text settings apply to the option text.
-function McqOptions({ owner }) {
+function McqOptions({ owner, indent = 20 }) {
   const options = normalizeOptions(owner).options.filter(isOptionUsed)
   if (!options.length) return null
   const layout = OPTION_LAYOUT_STYLE[owner.optionLayout] || OPTION_LAYOUT_STYLE.grid
   return (
-    <div style={{ ...layout, marginTop: 8, marginLeft: 20, fontSize: 12, ...textSizeStyle(owner) }}>
+    <div style={{ ...layout, marginTop: 8, marginLeft: indent, fontSize: 12, ...textSizeStyle(owner) }}>
       {options.map((opt, i) => (
         <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 6, flex: owner.optionLayout === 'row' ? '1 1 0' : undefined, minWidth: 0 }}>
-          <OptionMarker marker={owner.optionMarker} index={i} />
+          <OptionMarker marker={owner.optionMarker} format={owner.optionLabelFormat} index={i} />
           {/* A full-width image needs the column to fill the option cell. */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0, ...(opt.imageSize === 'full' ? { flex: 1 } : {}) }}>
             {opt.imageUrl && (
@@ -101,6 +107,15 @@ function McqOptions({ owner }) {
   )
 }
 
+function TfOptions({ q, indent }) {
+  const owner = {
+    ...q,
+    options: [{ text: q.trueLabel || 'True', imageUrl: '' }, { text: q.falseLabel || 'False', imageUrl: '' }],
+    optionLayout: 'inline',
+  }
+  return <McqOptions owner={owner} indent={indent} />
+}
+
 function AnswerLines({ count, style }) {
   return (
     <div style={style}>
@@ -111,8 +126,129 @@ function AnswerLines({ count, style }) {
   )
 }
 
-// ---- sub-parts ----
-function SubPart({ part, label, showMarks }) {
+function WordBank({ owner, indent }) {
+  const words = (owner.wordBank || []).filter(w => w && w.trim())
+  if (!words.length) return null
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '6px 32px', border: '1px solid #1e293b', borderRadius: 2, padding: '6px 14px', marginTop: 8, marginLeft: indent, fontSize: 13, ...textSizeStyle(owner) }}>
+      {words.map((w, i) => <span key={i}><PrintText text={w} owner={{ letterSpacing: owner.letterSpacing }} /></span>)}
+    </div>
+  )
+}
+
+// ---- one question (top level or typed part) ----
+// The number is null for parts and for groups that hide it.
+function TextLine({ q, number }) {
+  const lead = number != null ? <><strong>{number}.</strong> </> : null
+  if (q.type === 'tf' && q.tfStyle === 'bracket') {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12, fontSize: 13, color: '#1e293b', ...textSizeStyle(q) }}>
+        <div>{lead}<PrintText text={q.text} owner={q} /></div>
+        <span style={{ flexShrink: 0, whiteSpace: 'pre' }}>(      )</span>
+      </div>
+    )
+  }
+  return (
+    <div style={{ fontSize: 13, color: '#1e293b', ...textSizeStyle(q) }}>
+      {lead}<PrintText text={q.text} owner={q} />
+      {q.answerStyle === 'blank' && <span> ________________</span>}
+    </div>
+  )
+}
+
+function QuestionImage({ q, inPart }) {
+  if (!q.imageUrl) return null
+  const style = inPart
+    ? { ...imageSizeStyle(q.imageSize, MEDIUM_IMAGE), display: 'block', marginTop: 6 }
+    : { ...imageSizeStyle(q.imageSize, LEGACY_QUESTION_IMAGE, 'calc(100% - 20px)'), marginTop: 8, marginLeft: 20, display: 'block' }
+  return <img src={printImageUrl(q.imageUrl)} alt="" style={style} />
+}
+
+// Everything below the text line and image, by type. Parts are not indented further.
+function QuestionBody({ q, inPart }) {
+  const indent = inPart ? 0 : 20
+  switch (q.type) {
+    case 'match':
+      return <MatchBlock q={q} indent={indent} />
+    case 'MCQ':
+      // A top-level MCQ has always had one answer line under its options; MCQ parts never had one.
+      return (
+        <>
+          <McqOptions owner={q} indent={indent} />
+          {!inPart && <AnswerLines count={answerLineCount(q.type)} style={{ marginLeft: 20, marginTop: 10 }} />}
+        </>
+      )
+    case 'tf':
+      return q.tfStyle === 'bracket' ? null : <TfOptions q={q} indent={indent} />
+    case 'fill':
+      return q.fillStyle === 'choices' ? <McqOptions owner={q} indent={indent} /> : null
+    default: {
+      // Short / long answer and the old-style fill type.
+      const answerStyle = q.answerStyle || 'lines'
+      if (answerStyle === 'box') return <div style={{ marginLeft: indent, marginTop: 8, height: 70, border: '1px solid #94a3b8', borderRadius: 2 }} />
+      if (answerStyle !== 'lines') return null
+      return <AnswerLines count={answerLineCount(q.type)} style={inPart ? { marginTop: 8 } : { marginLeft: 20, marginTop: 10 }} />
+    }
+  }
+}
+
+function QuestionContent({ q, number, inPart = false }) {
+  return (
+    <>
+      <TextLine q={q} number={number} />
+      <WordBank owner={q} indent={inPart ? 0 : 20} />
+      <QuestionImage q={q} inPart={inPart} />
+      <QuestionBody q={q} inPart={inPart} />
+    </>
+  )
+}
+
+// ---- groups ----
+const MarksTag = ({ value }) => <div style={{ fontSize: 12, color: '#64748b', whiteSpace: 'nowrap' }}>[{value}]</div>
+
+const PART_LABEL_WIDTH = { numbers: 20, letters: 26, roman: 34 }
+
+// A typed part: label column, then the part rendered like any question, marks at the right edge.
+function PartRow({ part, label, labelStyle, showMarks }) {
+  return (
+    <div style={{ display: 'flex', gap: 6, marginTop: 8, marginLeft: 20, breakInside: 'avoid', pageBreakInside: 'avoid' }}>
+      <div style={{ minWidth: PART_LABEL_WIDTH[labelStyle] || PART_LABEL_WIDTH.roman, flexShrink: 0, fontSize: 13, color: '#1e293b', ...textSizeStyle(part) }}>{label}</div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <QuestionContent q={part} number={null} inPart />
+      </div>
+      {showMarks && <MarksTag value={questionMarks(part)} />}
+    </div>
+  )
+}
+
+// Groups with typed parts may break across pages, but only between parts;
+// the instruction line stays with the first part.
+function TypedGroup({ q, number }) {
+  const showMarks = q.showPartMarks !== false
+  const parts = q.parts.map((p, pi) => (
+    <PartRow key={pi} part={isUntypedPart(p) ? { ...p, type: legacyPartType(p) } : p}
+      label={partLabel(q.partLabelStyle, pi)} labelStyle={q.partLabelStyle} showMarks={showMarks} />
+  ))
+  return (
+    <div className="qp-group" style={{ marginBottom: 16 }}>
+      <div style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <TextLine q={q} number={number} />
+            <WordBank owner={q} indent={20} />
+            <QuestionImage q={q} />
+          </div>
+          <MarksTag value={questionMarks(q)} />
+        </div>
+        {parts[0]}
+      </div>
+      {parts.slice(1)}
+    </div>
+  )
+}
+
+// Parts saved before parts had a type, printed exactly as they were.
+function LegacySubPart({ part, label, showMarks }) {
   const answerStyle = part.answerStyle || 'lines'
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginTop: 8, marginLeft: 20 }}>
@@ -152,14 +288,14 @@ function MatchItem({ item, owner }) {
   )
 }
 
-function MatchBlock({ q }) {
+function MatchBlock({ q, indent = 20 }) {
   const left = (q.leftItems || []).filter(isItemUsed)
   const right = (q.rightItems || []).filter(isItemUsed)
   const rows = Math.max(left.length, right.length)
   if (!rows) return null
   const dots = q.matchStyle === 'dots'
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', columnGap: dots ? 72 : 40, rowGap: 12, alignItems: 'center', marginTop: 10, marginLeft: 20, fontSize: 12, breakInside: 'avoid', pageBreakInside: 'avoid', ...textSizeStyle(q) }}>
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', columnGap: dots ? 72 : 40, rowGap: 12, alignItems: 'center', marginTop: 10, marginLeft: indent, fontSize: 12, breakInside: 'avoid', pageBreakInside: 'avoid', ...textSizeStyle(q) }}>
       {Array.from({ length: rows }).flatMap((_, i) => [
         <div key={`l${i}`} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {left[i] && (
@@ -296,32 +432,26 @@ export default function PrintQuestionPaper() {
             {(section.questions || []).map((q, qi) => {
               const withParts = hasParts(q)
               const isMatch = q.type === 'match'
+              // Hiding the number doesn't renumber the other questions.
+              const number = q.showQuestionNumber === false ? null : qi + 1
+              if (withParts && !q.parts.every(isUntypedPart)) return <TypedGroup key={qi} q={q} number={number} />
               return (
                 <div key={qi} className="qp-question" style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 16, breakInside: 'avoid', pageBreakInside: 'avoid' }}>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13, color: '#1e293b', ...textSizeStyle(q) }}>
-                      <strong>{qi + 1}.</strong> <PrintText text={q.text} owner={q} />
-                    </div>
-
-                    {q.imageUrl && (
-                      <img src={printImageUrl(q.imageUrl)} alt=""
-                        style={{ ...imageSizeStyle(q.imageSize, LEGACY_QUESTION_IMAGE, 'calc(100% - 20px)'), marginTop: 8, marginLeft: 20, display: 'block' }} />
-                    )}
-
-                    {isMatch ? (
-                      <MatchBlock q={q} />
-                    ) : withParts ? (
-                      q.parts.map((part, pi) => (
-                        <SubPart key={pi} part={part} label={partLabel(q.partLabelStyle, pi)} showMarks={q.showPartMarks !== false} />
-                      ))
-                    ) : (
+                    {withParts ? (
                       <>
-                        {q.type === 'MCQ' && <McqOptions owner={q} />}
-                        <AnswerLines count={answerLineCount(q.type)} style={{ marginLeft: 20, marginTop: 10 }} />
+                        <TextLine q={q} number={number} />
+                        <WordBank owner={q} indent={20} />
+                        <QuestionImage q={q} />
+                        {q.parts.map((part, pi) => (
+                          <LegacySubPart key={pi} part={part} label={partLabel(q.partLabelStyle, pi)} showMarks={q.showPartMarks !== false} />
+                        ))}
                       </>
+                    ) : (
+                      <QuestionContent q={q} number={number} />
                     )}
                   </div>
-                  <div style={{ fontSize: 12, color: '#64748b', whiteSpace: 'nowrap' }}>[{isMatch || withParts ? questionMarks(q) : q.marks}]</div>
+                  <MarksTag value={isMatch || withParts ? questionMarks(q) : q.marks} />
                 </div>
               )
             })}

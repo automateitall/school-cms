@@ -7,9 +7,15 @@ export const MIN_OPTION_ROWS = 4
 export const MAX_OPTION_ROWS = 6
 
 export const OPTION_MARKERS = [
-  { value: 'letters', label: 'Letters (a) (b) (c)' },
-  { value: 'letterDot', label: 'Letters a. b. c.' },
+  { value: 'letters', label: 'Letters' },
   { value: 'circle', label: 'Empty circle' },
+]
+
+// Applies when the marker is letters. '(a)' is the default and is never stored.
+export const OPTION_LABEL_FORMATS = [
+  { value: '(a)', label: '(a)' },
+  { value: 'a.', label: 'a.' },
+  { value: 'a)', label: 'a)' },
 ]
 
 export const OPTION_LAYOUTS = [
@@ -26,7 +32,7 @@ export const optionLetter = (i) => String.fromCharCode(97 + i)
 
 const toOption = (opt) => {
   if (typeof opt === 'string') return { text: opt, imageUrl: '' }
-  return { text: opt?.text || '', imageUrl: opt?.imageUrl || '' }
+  return { text: opt?.text || '', imageUrl: opt?.imageUrl || '', ...(opt?.imageSize ? { imageSize: opt.imageSize } : {}) }
 }
 
 // Returns { options, correctIndex } with every option as { text, imageUrl },
@@ -56,11 +62,14 @@ export const toEditableMcq = (q) => {
   const { options, correctIndex } = normalizeOptions(q)
   const rows = options.slice(0, MAX_OPTION_ROWS)
   while (rows.length < MIN_OPTION_ROWS) rows.push(emptyOption())
+  // 'letterDot' was briefly a marker of its own; it is now letters + the 'a.' label format.
+  const legacyDot = q.optionMarker === 'letterDot'
   return {
     ...q,
     options: rows,
     correctAnswer: correctIndex,
-    optionMarker: q.optionMarker || 'letters',
+    optionMarker: legacyDot ? 'letters' : q.optionMarker || 'letters',
+    optionLabelFormat: legacyDot ? 'a.' : q.optionLabelFormat || '(a)',
     optionLayout: q.optionLayout || 'grid',
   }
 }
@@ -72,7 +81,12 @@ export const toSavedMcq = (q) => {
   ;(q.options || []).forEach((opt, i) => {
     if (!isOptionUsed(opt)) return
     if (i === q.correctAnswer) correctAnswer = saved.length
-    saved.push({ text: opt.text || '', imageUrl: opt.imageUrl || '' })
+    saved.push({ text: opt.text || '', imageUrl: opt.imageUrl || '', ...(opt.imageSize ? { imageSize: opt.imageSize } : {}) })
   })
-  return { ...q, options: saved, correctAnswer }
+  const out = { ...q, options: saved, correctAnswer }
+  // Never store default settings.
+  if (out.optionMarker === 'letters') delete out.optionMarker
+  if (out.optionLabelFormat === '(a)') delete out.optionLabelFormat
+  if (out.optionLayout === 'grid') delete out.optionLayout
+  return out
 }
