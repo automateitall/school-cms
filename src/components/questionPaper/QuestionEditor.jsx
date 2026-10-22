@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import {
-  T, QUESTION_TYPES, LEGACY_FILL_TYPE, MAX_PARTS, ANSWER_STYLES, TF_STYLES, PART_LABEL_STYLES, MATCH_STYLES,
+  T, QUESTION_TYPES, LEGACY_FILL_TYPE, MAX_PARTS, ANSWER_STYLES, TF_STYLES, PART_LABEL_STYLES, MATCH_STYLES, MATCH_LABEL_STYLES,
   hasParts, questionMarks, mcqInit, newQuestion, partLabel, resolvePatch, settingValue,
   typeChangeDropsContent, typeChangePatch,
 } from '../../lib/questionModel'
@@ -10,9 +10,11 @@ import ImageField from './ImageField'
 import { AppearanceSettings } from './AppearanceFields'
 import OptionsEditor, { OptionStyleFields } from './OptionsEditor'
 import MatchEditor from './MatchEditor'
+import SumsEditor from './SumsEditor'
 import { Btn, Icon, IconBtn, MarksStepper, NAVY, TypeChip, inputCls, selectCls } from './ui'
 
 const BLANK = '______'
+const BOX = '☐' // prints as an empty box
 
 function WordBankEditor({ words, onChange }) {
   const list = words || []
@@ -124,6 +126,7 @@ function PrintStyle({ q, onChange, isGroup, lang }) {
           {!isGroup && q.type === T.FILL && q.fillStyle === 'choices' && <OptionStyleFields owner={q} onChange={onChange} />}
           {!isGroup && (q.type === T.SHORT || q.type === T.LONG || q.type === T.LEGACY_FILL) && field('Space for the answer', q.answerStyle || 'lines', ANSWER_STYLES, 'answerStyle')}
           {!isGroup && q.type === T.MATCH && field('Children answer by', q.matchStyle || 'bracket', MATCH_STYLES, 'matchStyle')}
+          {!isGroup && q.type === T.MATCH && field('Labels', q.matchLabelStyle || 'numbers', MATCH_LABEL_STYLES, 'matchLabelStyle')}
           <AppearanceSettings value={q} onChange={onChange} />
         </div>
       )}
@@ -235,7 +238,7 @@ function PartsEditor({ q, onChange, lang, defaultMarks }) {
 export default function QuestionEditor({ q, onChange, allowParts = false, lang = 'en', defaultMarks = 1 }) {
   const textRef = useRef(null)
   const isGroup = allowParts && hasParts(q)
-  const calculatedMarks = isGroup || q.type === T.MATCH
+  const calculatedMarks = isGroup || q.type === T.MATCH || q.type === T.SUMS
 
   const changeType = (type) => {
     if (type === q.type) return
@@ -244,16 +247,17 @@ export default function QuestionEditor({ q, onChange, allowParts = false, lang =
     onChange(cur => typeChangePatch(cur, type))
   }
 
-  const insertBlank = () => {
+  // Puts a blank (______) or a box (☐) where the cursor is in the question text.
+  const insertAtCursor = (token) => {
     const el = textRef.current
     const text = q.text || ''
     const start = el ? el.selectionStart : text.length
     const end = el ? el.selectionEnd : text.length
-    onChange({ text: text.slice(0, start) + BLANK + text.slice(end) })
+    onChange({ text: text.slice(0, start) + token + text.slice(end) })
     requestAnimationFrame(() => {
       if (!el) return
       el.focus()
-      el.setSelectionRange(start + BLANK.length, start + BLANK.length)
+      el.setSelectionRange(start + token.length, start + token.length)
     })
   }
 
@@ -264,10 +268,10 @@ export default function QuestionEditor({ q, onChange, allowParts = false, lang =
   }
 
   const typeOptions = q.type === T.LEGACY_FILL ? [...QUESTION_TYPES, LEGACY_FILL_TYPE] : QUESTION_TYPES
-  const textLabel = isGroup ? 'Instruction (printed in bold)' : q.type === T.MATCH ? 'Instruction' : q.type === T.TF ? 'Statement' : (q.type === T.FILL ? 'Sentence' : 'Question')
+  const textLabel = isGroup ? 'Instruction (printed in bold)' : q.type === T.MATCH || q.type === T.SUMS ? 'Instruction' : q.type === T.TF ? 'Statement' : (q.type === T.FILL ? 'Sentence' : 'Question')
   const placeholder = isGroup
     ? (q.passage !== undefined ? 'e.g. Read the passage carefully and answer the questions that follow.' : 'e.g. Answer any five of the following.')
-    : q.type === T.MATCH ? 'e.g. Match the following:' : q.type === T.FILL ? 'Type the sentence; use the button to put in the blank' : 'Type the question here…'
+    : q.type === T.MATCH ? 'e.g. Match the following:' : q.type === T.SUMS ? 'e.g. Add the following.' : q.type === T.FILL ? 'Type the sentence; use the button to put in the blank' : 'Type the question here…'
 
   return (
     <div className="flex flex-col gap-3.5">
@@ -284,7 +288,7 @@ export default function QuestionEditor({ q, onChange, allowParts = false, lang =
         {calculatedMarks ? (
           <div className="flex flex-col items-end">
             <span className="text-[19px] font-bold text-slate-900">{questionMarks(q)} mark{questionMarks(q) === 1 ? '' : 's'}</span>
-            <span className="text-[13px] text-slate-600">{isGroup ? 'added up from the sub-questions' : 'marks per pair × pairs'}</span>
+            <span className="text-[13px] text-slate-600">{isGroup ? 'added up from the sub-questions' : q.type === T.SUMS ? 'marks for each sum × sums' : 'marks per pair × pairs'}</span>
           </div>
         ) : (
           <MarksStepper value={q.marks} onChange={v => onChange({ marks: v })} small={!allowParts} />
@@ -295,8 +299,14 @@ export default function QuestionEditor({ q, onChange, allowParts = false, lang =
         <div className="flex items-center gap-2">
           <span className="text-sm text-slate-600 mr-auto">{textLabel}</span>
           {!isGroup && (q.type === T.FILL || q.type === T.LEGACY_FILL) && (
-            <Btn tone="link" onMouseDown={e => e.preventDefault()} onClick={insertBlank} className="min-h-[36px] text-sm font-semibold">
+            <Btn tone="link" onMouseDown={e => e.preventDefault()} onClick={() => insertAtCursor(BLANK)} className="min-h-[36px] text-sm font-semibold">
               + Put a blank ______ here
+            </Btn>
+          )}
+          {!isGroup && q.type !== T.MATCH && q.type !== T.SUMS && (
+            <Btn tone="link" onMouseDown={e => e.preventDefault()} onClick={() => insertAtCursor(BOX)} className="min-h-[36px] text-sm font-semibold"
+              title="Prints an empty box to write in, e.g. 35 = ☐ tens and ☐ ones">
+              + Put a box ☐ here
             </Btn>
           )}
         </div>
@@ -347,6 +357,7 @@ export default function QuestionEditor({ q, onChange, allowParts = false, lang =
             </>
           )}
           {q.type === T.MATCH && q.leftItems && <MatchEditor q={q} onChange={onChange} lang={lang} />}
+          {q.type === T.SUMS && <SumsEditor q={q} onChange={onChange} lang={lang} />}
         </>
       )}
 

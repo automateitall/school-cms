@@ -7,11 +7,12 @@
 // or Short Answer (anything else) and keep printing with the original part layout.
 
 import { MIN_OPTION_ROWS, emptyOption, isOptionUsed, toEditableMcq, toSavedMcq } from './questionOptions'
+import { usedSums, validSums } from './sums'
 
 // Stored type values. 'Fill in the blank' is the pre-existing fill type (prints one answer line);
 // new fill questions use 'fill' (the blank is inside the text, no extra space).
 export const T = {
-  MCQ: 'MCQ', TF: 'tf', FILL: 'fill', SHORT: 'Short Answer', LONG: 'Long Answer', MATCH: 'match',
+  MCQ: 'MCQ', TF: 'tf', FILL: 'fill', SHORT: 'Short Answer', LONG: 'Long Answer', MATCH: 'match', SUMS: 'sums',
   LEGACY_FILL: 'Fill in the blank',
 }
 
@@ -22,6 +23,7 @@ export const QUESTION_TYPES = [
   { value: T.SHORT, label: 'Short answer' },
   { value: T.LONG, label: 'Long answer' },
   { value: T.MATCH, label: 'Match the following' },
+  { value: T.SUMS, label: 'Sums (one below the other)' },
 ]
 // Shown in the type selector only on questions that already have it.
 export const LEGACY_FILL_TYPE = { value: T.LEGACY_FILL, label: 'Fill in the blank (old style, answer line)' }
@@ -58,6 +60,15 @@ export const MATCH_STYLES = [
   { value: 'bracket', label: 'Write letter in bracket' },
   { value: 'dots', label: 'Draw lines (dots)' },
 ]
+
+// Labels for the two match columns: 1. 2. 3. with (a) (b) (c), or (a) (b) (c) with (i) (ii) (iii).
+export const MATCH_LABEL_STYLES = [
+  { value: 'numbers', label: '1. 2. 3.  and  (a) (b) (c)' },
+  { value: 'roman', label: '(a) (b) (c)  and  (i) (ii) (iii)' },
+]
+
+// Classes whose children answer "match the following" by drawing lines.
+export const LINE_MATCH_CLASSES = ['Play Group', 'Nursery', 'LKG', 'UKG', 'Class 1', 'Class 2']
 
 // The first value of each list is the default and is never stored, so old papers stay unchanged.
 export const TEXT_SIZES = [
@@ -113,6 +124,7 @@ const num = (v) => parseFloat(v) || 0
 export const questionMarks = (q) => {
   if (hasParts(q)) return q.parts.reduce((sum, p) => sum + questionMarks(p), 0)
   if (q.type === T.MATCH) return num(q.marksPerPair) * (q.leftItems || []).filter(isItemUsed).length
+  if (q.type === T.SUMS) return num(q.marksEach ?? 1) * validSums(q).length
   return num(q.marks)
 }
 
@@ -120,8 +132,9 @@ export const questionMarks = (q) => {
 const MCQ_KEYS = ['options', 'correctAnswer', 'optionMarker', 'optionLabelFormat', 'optionLayout']
 const TF_KEYS = ['trueLabel', 'falseLabel', 'tfStyle']
 const FILL_KEYS = ['fillStyle', 'wordBank']
-const MATCH_KEYS = ['leftItems', 'rightItems', 'marksPerPair', 'matchStyle', 'correctMatch']
-export const TYPE_KEYS = [...new Set([...MCQ_KEYS, ...TF_KEYS, ...FILL_KEYS, ...MATCH_KEYS, 'answerStyle'])]
+const MATCH_KEYS = ['leftItems', 'rightItems', 'marksPerPair', 'matchStyle', 'correctMatch', 'matchHeadA', 'matchHeadB', 'matchLabelStyle']
+const SUM_KEYS = ['sums', 'marksEach', 'sumHeadings', 'sumCarry', 'sumAnswerBoxes', 'sumsPerRow', 'sumArrow', 'sumLine']
+export const TYPE_KEYS = [...new Set([...MCQ_KEYS, ...TF_KEYS, ...FILL_KEYS, ...MATCH_KEYS, ...SUM_KEYS, 'answerStyle'])]
 const GROUP_KEYS = ['parts', 'partLabelStyle', 'showPartMarks', 'showQuestionNumber']
 
 // Type-specific keys each kind of question keeps when saved.
@@ -132,6 +145,7 @@ const keptKeys = (q) => {
     case T.TF: return [...TF_KEYS, 'correctAnswer', 'optionMarker', 'optionLabelFormat']
     case T.FILL: return q.fillStyle === 'choices' ? [...FILL_KEYS, ...MCQ_KEYS] : FILL_KEYS
     case T.MATCH: return MATCH_KEYS
+    case T.SUMS: return SUM_KEYS
     default: return ['answerStyle'] // short, long, old-style fill
   }
 }
@@ -141,7 +155,8 @@ const DEFAULTS = {
   optionMarker: 'letters', optionLabelFormat: '(a)', optionLayout: 'grid',
   tfStyle: 'options', trueLabel: 'True', falseLabel: 'False', fillStyle: 'blank',
   matchStyle: 'bracket', answerStyle: 'lines', partLabelStyle: 'roman',
-  showPartMarks: true, showQuestionNumber: true,
+  showPartMarks: true, showQuestionNumber: true, matchLabelStyle: 'numbers',
+  marksEach: 1, sumHeadings: true, sumCarry: true, sumAnswerBoxes: true, sumsPerRow: 5, sumArrow: false, sumLine: false,
   textSize: 'normal', letterSpacing: 'normal', textDisplay: 'plain',
 }
 
@@ -215,6 +230,7 @@ export const matchInit = () => ({
 
 export const typeInit = (type) => {
   if (type === T.MCQ) return mcqInit()
+  if (type === T.SUMS) return { sums: [''], marksEach: 1 }
   if (type === T.MATCH) return matchInit()
   if (type === T.TF) return { correctAnswer: null }
   return {}
@@ -233,6 +249,7 @@ export const newGroup = ({ passage = false, partType = T.SHORT, marks = 1 } = {}
 export const typeChangeDropsContent = (q, type) => {
   if (usesOptions(q) && q.options?.some(isOptionUsed) && type !== T.MCQ && type !== T.FILL) return true
   if (q.type === T.MATCH && type !== T.MATCH && [...(q.leftItems || []), ...(q.rightItems || [])].some(isItemUsed)) return true
+  if (q.type === T.SUMS && type !== T.SUMS && usedSums(q).length) return true
   return false
 }
 
@@ -240,7 +257,7 @@ export const typeChangeDropsContent = (q, type) => {
 export const typeChangePatch = (q, type) => {
   const patch = Object.fromEntries(TYPE_KEYS.map(k => [k, undefined]))
   Object.assign(patch, { type, _untyped: undefined }, typeInit(type))
-  if (q.type === T.MATCH) patch.marks = questionMarks(q)
+  if (q.type === T.MATCH || q.type === T.SUMS) patch.marks = questionMarks(q)
   if (usesOptions(q) && (type === T.MCQ || type === T.FILL)) {
     MCQ_KEYS.forEach(k => { patch[k] = q[k] })
     if (type === T.FILL) patch.fillStyle = 'choices'
@@ -272,6 +289,10 @@ export const toSavedQuestion = (q, isPart = false) => {
     out.marks = questionMarks(q)
   } else if (q.type === T.MATCH) {
     out = toSavedMatch(out)
+    ;['matchHeadA', 'matchHeadB'].forEach(k => { if (!String(out[k] || '').trim()) delete out[k] })
+  } else if (q.type === T.SUMS) {
+    out.sums = usedSums(q)
+    out.marks = questionMarks(q)
   } else if (usesOptions(q)) {
     out = toSavedMcq(out)
   } else if (q.type === T.TF) {

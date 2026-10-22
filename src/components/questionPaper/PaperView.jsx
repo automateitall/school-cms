@@ -6,6 +6,8 @@ import {
   readPaperSettings, sectionMarks,
 } from '../../lib/questionModel'
 import { t, letterFor, sectionLetter, examTitleFor } from '../../lib/paperI18n'
+import { validSums } from '../../lib/sums'
+import SumsBlock from './SumsBlock'
 
 // One printed question paper. Used by the print page (one paper, or several in a row),
 // the answer key and the builder's live preview.
@@ -47,6 +49,15 @@ const TILE_STYLE = {
   border: `1px solid ${INK}`, borderRadius: 2,
 }
 
+// ☐ in a question's text prints as an empty box for the child to write in ("35 = ☐ tens and ☐ ones").
+export const BOX = '☐'
+const WriteBox = () => (
+  <span style={{ display: 'inline-block', width: 40, height: 26, border: `1.5px solid ${INK}`, verticalAlign: 'middle', margin: '0 3px', boxSizing: 'border-box' }} />
+)
+const withBoxes = (text) => (text.includes(BOX)
+  ? text.split(BOX).flatMap((part, i) => (i ? [<WriteBox key={`b${i}`} />, part] : [part]))
+  : text)
+
 // Text with the owner's letter spacing and display (plain or one bordered tile per space-separated token).
 function PrintText({ text, owner }) {
   if (!text) return null
@@ -59,7 +70,7 @@ function PrintText({ text, owner }) {
       </span>
     )
   }
-  return spacing ? <span style={spacing}>{text}</span> : text
+  return spacing ? <span style={spacing}>{withBoxes(text)}</span> : withBoxes(text)
 }
 
 // ---- images ----
@@ -227,6 +238,8 @@ function QuestionBody({ q, inPart }) {
   switch (q.type) {
     case 'match':
       return <MatchBlock q={q} indent={indent} />
+    case 'sums':
+      return <SumsWithContext q={q} indent={indent} />
     case 'MCQ':
       // A top-level MCQ has always had one answer line under its options; MCQ parts never had one.
       return (
@@ -333,7 +346,7 @@ function LegacySubPart({ part, label, showMarks }) {
 
 // ---- match the following ----
 const MatchDot = () => (
-  <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: INK, flexShrink: 0 }} />
+  <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: '50%', background: INK, flexShrink: 0 }} />
 )
 
 function MatchItem({ item, owner }) {
@@ -354,19 +367,24 @@ function MatchBlock({ q, indent = 22 }) {
   const rows = Math.max(left.length, right.length)
   if (!rows) return null
   const dots = q.matchStyle === 'dots'
+  const roman = q.matchLabelStyle === 'roman'
+  const leftLabel = (i) => (roman ? `(${letterFor(i, lang)})` : `${i + 1}.`)
+  const rightLabel = (i) => (roman ? partLabel('roman', i) : `(${letterFor(i, lang)})`)
   const keyFor = (i) => {
     const ri = q.correctMatch?.[i]
-    return answerKey && typeof ri === 'number' ? letterFor(ri, lang) : ''
+    if (!answerKey || typeof ri !== 'number') return ''
+    return roman ? partLabel('roman', ri).replace(/[()]/g, '') : letterFor(ri, lang)
   }
+  const heading = { fontSize: 13, fontWeight: 700, color: '#334155' }
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', columnGap: dots ? 72 : 40, rowGap: 10, alignItems: 'center', marginTop: 8, marginLeft: indent, fontSize: SMALL, breakInside: 'avoid', pageBreakInside: 'avoid', ...textSizeStyle(q) }}>
-      <div style={{ fontSize: 12, fontWeight: 700, color: '#475569' }}>{t(lang).columnA}</div>
-      <div style={{ fontSize: 12, fontWeight: 700, color: '#475569' }}>{t(lang).columnB}</div>
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', columnGap: dots ? 96 : 40, rowGap: dots ? 16 : 10, alignItems: 'center', marginTop: 8, marginLeft: indent, fontSize: SMALL, breakInside: 'avoid', pageBreakInside: 'avoid', ...textSizeStyle(q) }}>
+      <div style={heading}>{q.matchHeadA || t(lang).columnA}</div>
+      <div style={heading}>{q.matchHeadB || t(lang).columnB}</div>
       {Array.from({ length: rows }).flatMap((_, i) => [
         <div key={`l${i}`} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {left[i] && (
             <>
-              <span style={{ flexShrink: 0 }}>{i + 1}.</span>
+              <span style={{ flexShrink: 0 }}>{leftLabel(i)}</span>
               <MatchItem item={left[i]} owner={q} />
               {dots ? <MatchDot /> : <Bracket>{keyFor(i)}</Bracket>}
             </>
@@ -376,7 +394,7 @@ function MatchBlock({ q, indent = 22 }) {
           {right[i] && (
             <>
               {dots && <MatchDot />}
-              <span style={{ flexShrink: 0 }}>({letterFor(i, lang)})</span>
+              <span style={{ flexShrink: 0 }}>{rightLabel(i)}</span>
               <MatchItem item={right[i]} owner={q} />
             </>
           )}
@@ -384,6 +402,19 @@ function MatchBlock({ q, indent = 22 }) {
       ])}
     </div>
   )
+}
+
+// ---- sums ----
+function SumsWithContext({ q, indent }) {
+  const { lang, answerKey } = usePaper()
+  return <SumsBlock q={q} lang={lang} answerKey={answerKey} indent={indent} />
+}
+
+// "[1 × 5 = 5]" for a Sums question, or just the total when each sum is worth the whole.
+const sumsMarks = (q) => {
+  const n = validSums(q).length
+  const each = q.marksEach ?? 1
+  return n > 1 ? `${each} × ${n} = ${questionMarks(q)}` : questionMarks(q)
 }
 
 // ---- one top-level question ----
@@ -410,7 +441,7 @@ function Question({ q, number, highlighted, anchorId }) {
           <QuestionContent q={q} number={number} />
         )}
       </div>
-      <MarksTag value={isMatch || withParts ? questionMarks(q) : q.marks} />
+      <MarksTag value={q.type === 'sums' ? sumsMarks(q) : isMatch || withParts ? questionMarks(q) : q.marks} />
     </div>
   )
 }

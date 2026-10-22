@@ -1,4 +1,4 @@
-import { MAX_MATCH_ITEMS, emptyMatchItem, isItemUsed, resolvePatch } from '../../lib/questionModel'
+import { MAX_MATCH_ITEMS, emptyMatchItem, isItemUsed, partLabel, resolvePatch } from '../../lib/questionModel'
 import { letterFor } from '../../lib/paperI18n'
 import ImageField from './ImageField'
 import { MarksStepper, NAVY, selectCls } from './ui'
@@ -36,12 +36,19 @@ export default function MatchEditor({ q, onChange, lang = 'en' }) {
     let n = 0
     return items.map(it => (isItemUsed(it) ? fmt(n++) : '·'))
   }
-  const leftLabels = labelsFor(q.leftItems, n => `${n + 1}.`)
-  const rightLabels = labelsFor(q.rightItems, n => `(${letterFor(n, lang)})`)
+  const roman = q.matchLabelStyle === 'roman'
+  const leftLabels = labelsFor(q.leftItems, n => (roman ? `(${letterFor(n, lang)})` : `${n + 1}.`))
+  const rightLabels = labelsFor(q.rightItems, n => (roman ? partLabel('roman', n) : `(${letterFor(n, lang)})`))
 
+  const headKey = { leftItems: 'matchHeadA', rightItems: 'matchHeadB' }
   const renderColumn = (side, title, labels) => (
     <div>
-      <p className="text-sm font-semibold text-slate-600 mb-2">{title}</p>
+      <label className="flex flex-col gap-1 text-sm text-slate-600 mb-2">
+        {title} heading (optional)
+        <input type="text" value={q[headKey[side]] || ''} onChange={e => onChange({ [headKey[side]]: e.target.value })}
+          placeholder={side === 'leftItems' ? 'e.g. Repeated addition' : 'e.g. Multiplication'}
+          className="min-h-[40px] border border-slate-300 rounded-lg px-2.5 text-[16px] focus:outline-none focus:border-[#083e78] bg-white" />
+      </label>
       {q[side].map((it, i) => (
         <div key={it._id} className="border border-slate-200 rounded-xl p-2.5 mb-2 bg-slate-50">
           <div className="flex items-center gap-1.5">
@@ -68,7 +75,7 @@ export default function MatchEditor({ q, onChange, lang = 'en' }) {
                   className={selectCls}>
                   <option value="">—</option>
                   {usedRight.map((r, ri) => (
-                    <option key={r._id} value={r._id}>({letterFor(ri, lang)}) {r.text.trim() || '[image]'}</option>
+                    <option key={r._id} value={r._id}>{roman ? partLabel('roman', ri) : `(${letterFor(ri, lang)})`} {r.text.trim() || '[image]'}</option>
                   ))}
                 </select>
               </label>

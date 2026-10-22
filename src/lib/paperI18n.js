@@ -95,3 +95,6 @@ export const examTitleFor = (examType, lang) => {
   }
   return examType
 }
+
+// Place-value headings over the columns of a sum, from the left: thousands, hundreds, tens, ones.
+export const placeHeadings = (lang) => (lang === 'hi' ? ['ह', 'स', 'द', 'इ'] : ['Th', 'H', 'T', 'O'])

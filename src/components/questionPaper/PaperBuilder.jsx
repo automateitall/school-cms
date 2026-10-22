@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import api from '../../lib/api'
 import {
-  T, hasParts, newGroup, newQuestion, questionMarks, resolvePatch, readPaperSettings, sectionMarks,
+  T, LINE_MATCH_CLASSES, hasParts, newGroup, newQuestion, questionMarks, resolvePatch, readPaperSettings, sectionMarks,
   toEditableQuestion, toEditableSections, toSavedQuestion, toSavedSections,
 } from '../../lib/questionModel'
 import { LANGS, defaultLangForSubject, examTitleFor } from '../../lib/paperI18n'
@@ -23,7 +23,9 @@ const QUICK_TYPES = [
   { type: T.SHORT, label: 'Short answer' },
   { type: T.LONG, label: 'Long answer' },
   { type: T.MATCH, label: 'Match the following' },
+  { type: T.SUMS, label: 'Sums', sub: 'one below the other' },
 ]
+const isMaths = (subject) => /math|गणित/i.test(subject || '')
 
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`
 
@@ -155,7 +157,12 @@ export default function PaperBuilder({ info, onBack }) {
     setOpenQ(qs.length === 1 ? start : null)
     setFocusKey(qs.length === 1 ? `${active}-${start}-${Date.now()}` : null)
   }
-  const addOfType = (type) => addQuestions([newQuestion(type, defaultMarks)])
+  const addOfType = (type) => {
+    const q = newQuestion(type, defaultMarks)
+    // Small children answer "match the following" by drawing lines.
+    if (type === T.MATCH && LINE_MATCH_CLASSES.includes(className)) q.matchStyle = 'dots'
+    addQuestions([q])
+  }
   const addGroup = (passage) => addQuestions([newGroup({ passage, marks: defaultMarks })])
 
   const updateQuestion = (qi, patch) => setQuestions(list => list.map((q, j) => j === qi ? { ...q, ...resolvePatch(patch, q) } : q))
@@ -375,14 +382,15 @@ export default function PaperBuilder({ info, onBack }) {
               <span className="text-[14px] text-slate-600">One click adds it to Section {section.name}, ready to type</span>
             </div>
             <div className="grid gap-2.5" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(150px, 100%), 1fr))' }}>
-              {QUICK_TYPES.map(({ type, label }) => {
+              {(isMaths(subject) ? [...QUICK_TYPES.slice(-1), ...QUICK_TYPES.slice(0, -1)] : QUICK_TYPES).map(({ type, label, sub }) => {
                 const same = !lastIsGroup && section.questions.length > 0 && type === lastType
                 return (
                   <button key={type} type="button" onClick={() => addOfType(type)}
                     className={`min-h-[64px] rounded-xl text-[16px] font-semibold flex flex-col items-center justify-center gap-0.5 ${same ? 'text-white border-2' : 'bg-white text-slate-900 border border-slate-300 hover:border-slate-500'}`}
                     style={same ? { background: NAVY, borderColor: NAVY } : undefined}>
                     + {label}
-                    {same && <span className="text-xs font-medium" style={{ color: '#dbe7f6' }}>same as last</span>}
+                    {same ? <span className="text-xs font-medium" style={{ color: '#dbe7f6' }}>same as last</span>
+                      : sub && <span className="text-xs font-medium text-slate-600">{sub}</span>}
                   </button>
                 )
               })}

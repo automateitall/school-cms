@@ -11,5 +11,9 @@ export const questionSummary = (q) => {
     const n = q.parts.length
     return { kind: `${q.passage !== undefined ? 'Passage' : 'Instruction'} + ${n} sub-question${n === 1 ? '' : 's'}`, text: q.text || q.passage || '' }
   }
+  if (q.type === T.SUMS) {
+    const sums = (q.sums || []).filter(x => String(x || '').trim())
+    return { kind: `Sums × ${sums.length}`, text: q.text || sums.join(',  ') }
+  }
   return { kind: typeLabel(q.type), text: q.text }
 }
