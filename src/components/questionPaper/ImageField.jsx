@@ -39,9 +39,9 @@ export default function ImageField({ imageUrl, imageSize, onChange, defaultSizeL
         <label className="cursor-pointer">
           <input type="file" accept="image/*" className="hidden"
             onChange={e => { pick(e.target.files[0]); e.target.value = '' }} />
-          <span style={{ background: '#e8f0fb', color: '#083e78' }}
-            className="px-2 py-1.5 rounded text-xs font-medium inline-block whitespace-nowrap">
-            {uploading ? 'Uploading...' : imageUrl ? 'Change image' : '+ Add image'}
+          <span style={{ color: '#083e78' }}
+            className={`${compact ? 'min-h-[32px] px-2 text-[13px]' : 'min-h-[44px] px-3.5 text-[15px] border border-slate-300 bg-white'} rounded-lg font-medium inline-flex items-center whitespace-nowrap hover:bg-slate-50`}>
+            {uploading ? 'Uploading…' : imageUrl ? 'Change picture' : '+ Add picture'}
           </span>
         </label>
         {imageUrl && (
@@ -58,11 +58,11 @@ export default function ImageField({ imageUrl, imageSize, onChange, defaultSizeL
             </div>
             <select value={imageSize || ''} title="Printed image size"
               onChange={e => onChange({ imageSize: e.target.value || undefined })}
-              className="border border-gray-300 rounded px-1.5 py-1 text-xs focus:outline-none">
+              className="min-h-[32px] border border-gray-300 rounded px-1.5 text-sm focus:outline-none">
               <option value="">{defaultSizeLabel}</option>
               {IMAGE_SIZES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
             </select>
-            <span className="text-[11px] text-gray-400">Use Full for images that contain text.</span>
+            <span className="text-xs text-slate-500">Use Full width for pictures with text.</span>
           </>
         )}
       </div>

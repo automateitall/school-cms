@@ -220,7 +220,14 @@ export const typeInit = (type) => {
   return {}
 }
 
-export const newQuestion = (type = T.SHORT) => ({ type, text: '', marks: 1, imageUrl: '', ...typeInit(type) })
+export const newQuestion = (type = T.SHORT, marks = 1) => ({ type, text: '', marks, imageUrl: '', ...typeInit(type) })
+
+// A question with parts, started from the builder's "Passage with questions" / "Instruction with questions".
+export const newGroup = ({ passage = false, partType = T.SHORT, marks = 1 } = {}) => ({
+  type: T.SHORT, text: '', marks: 0, imageUrl: '',
+  ...(passage ? { passage: '' } : {}),
+  parts: [newQuestion(partType, marks)],
+})
 
 // Whether switching q to `type` would drop content the teacher entered (options or match items).
 export const typeChangeDropsContent = (q, type) => {
@@ -271,6 +278,9 @@ export const toSavedQuestion = (q, isPart = false) => {
     out.correctAnswer = typeof q.correctAnswer === 'boolean' ? q.correctAnswer : null
   }
 
+  // A passage (or poem) prints in a box under a group's instruction; only groups carry one.
+  if (isPart || !hasParts(q) || !String(out.passage || '').trim()) delete out.passage
+
   if ('wordBank' in out) {
     const words = (out.wordBank || []).map(w => w.trim()).filter(Boolean)
     if (words.length) out.wordBank = words
@@ -291,3 +301,39 @@ export const mapQuestions = (sections, fn) => sections.map(s => ({
   ...s,
   questions: (s.questions || []).map(q => fn(q)),
 }))
+
+// ---- sections and paper-wide settings ----
+// The backend stores a paper's questions as one `sections` JSON value and has no column for
+// paper-wide settings, so those travel on the first section as `paper: { lang, examTitle }`.
+// A section may also carry `title` (printed after "Section A —"), `note` (the line under the
+// heading) and `defaultMarks` (marks given to new questions in the builder). All are optional.
+export const SECTION_NAMES = ['A', 'B', 'C']
+
+export const emptySections = () => SECTION_NAMES.map(name => ({ name, questions: [] }))
+
+export const readPaperSettings = (sections) => (Array.isArray(sections) && sections[0]?.paper) || {}
+
+export const writePaperSettings = (sections, settings) => {
+  const clean = Object.fromEntries(Object.entries(settings || {}).filter(([, v]) => v !== undefined && v !== ''))
+  return sections.map((s, i) => {
+    const rest = omit(s, ['paper'])
+    return i === 0 && Object.keys(clean).length ? { ...rest, paper: clean } : rest
+  })
+}
+
+export const toEditableSections = (sections) => {
+  const list = Array.isArray(sections) && sections.length ? sections : emptySections()
+  return list.map(s => ({ ...s, questions: (s.questions || []).map(q => toEditableQuestion(q)) }))
+}
+
+export const toSavedSections = (sections, settings) => writePaperSettings(sections.map(s => {
+  const out = { ...s, questions: (s.questions || []).map(q => toSavedQuestion(q)) }
+  ;['title', 'note'].forEach(k => {
+    if (typeof out[k] === 'string') out[k] = out[k].trim()
+    if (!out[k]) delete out[k]
+  })
+  if (!out.defaultMarks || Number(out.defaultMarks) === 1) delete out.defaultMarks
+  return out
+}), settings)
+
+export const sectionMarks = (s) => (s.questions || []).reduce((sum, q) => sum + questionMarks(q), 0)

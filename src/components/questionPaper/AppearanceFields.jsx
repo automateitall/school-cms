@@ -38,3 +38,24 @@ export default function AppearanceFields({ value, onChange }) {
     </div>
   )
 }
+
+// The same settings without the toggle, for the "Print style" panel.
+export function AppearanceSettings({ value, onChange }) {
+  return (
+    <>
+      {FIELDS.map(f => (
+        <label key={f.key} className="flex flex-col gap-1 text-sm text-slate-600">
+          {f.label}
+          <select value={value[f.key] || f.list[0].value}
+            onChange={e => onChange({ [f.key]: settingValue(f.list, e.target.value) })}
+            className="min-h-[44px] border border-slate-300 rounded-lg px-2.5 text-[15px] bg-white text-slate-900 focus:outline-none">
+            {f.list.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+          {f.key === 'textDisplay' && value.textDisplay === 'tiles' && (
+            <span className="text-xs text-slate-500">Separate tiles with spaces, e.g. "t a c".</span>
+          )}
+        </label>
+      ))}
+    </>
+  )
+}
