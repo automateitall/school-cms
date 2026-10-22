@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import api from '../lib/api'
 import { normalizeOptions, isOptionUsed, optionLetter } from '../lib/questionOptions'
+import { hasParts, isItemUsed, partLabel, questionMarks } from '../lib/questionModel'
 
 const FONT_STACK = "'Noto Sans Devanagari', Arial, sans-serif"
 const FONT_HREF = 'https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;500;700&display=swap'
@@ -20,6 +21,49 @@ const answerLineCount = (type) => {
   return 1
 }
 
+// ---- appearance ----
+const TEXT_SIZE_PX = { large: 18, xlarge: 26 }
+const textSizeStyle = (owner) => (TEXT_SIZE_PX[owner?.textSize] ? { fontSize: TEXT_SIZE_PX[owner.textSize] } : {})
+
+const TILE_STYLE = {
+  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+  minWidth: 34, minHeight: 34, padding: '0 6px', boxSizing: 'border-box',
+  border: '1px solid #1e293b', borderRadius: 2,
+}
+
+// Text with the owner's letter spacing and display (plain or one bordered tile per space-separated token).
+function PrintText({ text, owner }) {
+  if (!text) return null
+  const spacing = owner?.letterSpacing === 'wide' ? { letterSpacing: '0.15em' } : null
+  if (owner?.textDisplay === 'tiles') {
+    const tokens = text.split(/\s+/).filter(Boolean)
+    return (
+      <span style={{ display: 'inline-flex', flexWrap: 'wrap', gap: 6, verticalAlign: 'middle', ...spacing }}>
+        {tokens.map((t, i) => <span key={i} style={TILE_STYLE}>{t}</span>)}
+      </span>
+    )
+  }
+  return spacing ? <span style={spacing}>{text}</span> : text
+}
+
+// ---- images ----
+const IMAGE_MAX_HEIGHT = { small: 60, medium: 90, large: 140, xlarge: 220 }
+// Caps used before imageSize existed; an unset imageSize must print exactly like this.
+const LEGACY_QUESTION_IMAGE = { maxWidth: 220, maxHeight: 160 }
+const MEDIUM_IMAGE = { maxHeight: 90, maxWidth: '100%', objectFit: 'contain' }
+
+// avail: the width the image may take up in its container.
+const imageSizeStyle = (size, fallback, avail = '100%') => {
+  if (size === 'full') return { width: avail, height: 'auto' }
+  if (IMAGE_MAX_HEIGHT[size]) return { maxHeight: IMAGE_MAX_HEIGHT[size], maxWidth: avail, objectFit: 'contain' }
+  return fallback
+}
+
+// Print from the original upload: drop any Cloudinary delivery transformation (e.g. w_600,q_auto)
+// sitting between /upload/ and the version segment. Stored URLs are plain secure_urls, so this is a no-op today.
+const printImageUrl = (url) => url.replace(/\/upload\/(?:[a-z]{1,3}_[^/]*\/)+(?=v\d+\/)/, '/upload/')
+
+// ---- MCQ options ----
 const OPTION_LAYOUT_STYLE = {
   grid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 16px' },
   row: { display: 'flex', flexWrap: 'nowrap', gap: 16 },
@@ -33,23 +77,108 @@ function OptionMarker({ marker, index }) {
   return <span style={{ flexShrink: 0 }}>({optionLetter(index)})</span>
 }
 
-function McqOptions({ q }) {
-  const options = normalizeOptions(q).options.filter(isOptionUsed)
+// owner is the question or sub-part; its text settings apply to the option text.
+function McqOptions({ owner }) {
+  const options = normalizeOptions(owner).options.filter(isOptionUsed)
   if (!options.length) return null
-  const layout = OPTION_LAYOUT_STYLE[q.optionLayout] || OPTION_LAYOUT_STYLE.grid
+  const layout = OPTION_LAYOUT_STYLE[owner.optionLayout] || OPTION_LAYOUT_STYLE.grid
   return (
-    <div style={{ ...layout, marginTop: 8, marginLeft: 20, fontSize: 12 }}>
+    <div style={{ ...layout, marginTop: 8, marginLeft: 20, fontSize: 12, ...textSizeStyle(owner) }}>
       {options.map((opt, i) => (
-        <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 6, flex: q.optionLayout === 'row' ? '1 1 0' : undefined, minWidth: 0 }}>
-          <OptionMarker marker={q.optionMarker} index={i} />
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
+        <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 6, flex: owner.optionLayout === 'row' ? '1 1 0' : undefined, minWidth: 0 }}>
+          <OptionMarker marker={owner.optionMarker} index={i} />
+          {/* A full-width image needs the column to fill the option cell. */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0, ...(opt.imageSize === 'full' ? { flex: 1 } : {}) }}>
             {opt.imageUrl && (
-              <img src={opt.imageUrl} alt="" style={{ maxHeight: 90, maxWidth: '100%', objectFit: 'contain', display: 'block', alignSelf: 'flex-start' }} />
+              <img src={printImageUrl(opt.imageUrl)} alt="" style={{ ...imageSizeStyle(opt.imageSize, MEDIUM_IMAGE), display: 'block', alignSelf: 'flex-start' }} />
             )}
-            {opt.text && <div>{opt.text}</div>}
+            {opt.text && <div><PrintText text={opt.text} owner={owner} /></div>}
           </div>
         </div>
       ))}
+    </div>
+  )
+}
+
+function AnswerLines({ count, style }) {
+  return (
+    <div style={style}>
+      {Array.from({ length: count }).map((_, li) => (
+        <div key={li} style={{ borderBottom: '1px solid #cbd5e1', height: 20 }} />
+      ))}
+    </div>
+  )
+}
+
+// ---- sub-parts ----
+function SubPart({ part, label, lineCount }) {
+  const answerStyle = part.answerStyle || 'lines'
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginTop: 8, marginLeft: 20 }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13, color: '#1e293b', ...textSizeStyle(part) }}>
+          {label} <PrintText text={part.text} owner={part} />
+          {answerStyle === 'blank' && <span> ________________</span>}
+        </div>
+        {part.imageUrl && (
+          <img src={printImageUrl(part.imageUrl)} alt=""
+            style={{ ...imageSizeStyle(part.imageSize, MEDIUM_IMAGE, 'calc(100% - 20px)'), display: 'block', marginTop: 6, marginLeft: 20 }} />
+        )}
+        {answerStyle === 'options' && <McqOptions owner={part} />}
+        {answerStyle === 'lines' && <AnswerLines count={lineCount} style={{ marginLeft: 20, marginTop: 8 }} />}
+        {answerStyle === 'box' && (
+          <div style={{ marginLeft: 20, marginTop: 8, height: 70, border: '1px solid #94a3b8', borderRadius: 2 }} />
+        )}
+      </div>
+      <div style={{ fontSize: 12, color: '#64748b', whiteSpace: 'nowrap' }}>[{part.marks}]</div>
+    </div>
+  )
+}
+
+// ---- match the following ----
+const MatchDot = () => (
+  <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: '#1e293b', flexShrink: 0 }} />
+)
+
+function MatchItem({ item, owner }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1, minWidth: 0 }}>
+      {item.imageUrl && (
+        <img src={printImageUrl(item.imageUrl)} alt="" style={{ ...imageSizeStyle(item.imageSize, MEDIUM_IMAGE), display: 'block', alignSelf: 'flex-start' }} />
+      )}
+      {item.text && <div><PrintText text={item.text} owner={owner} /></div>}
+    </div>
+  )
+}
+
+function MatchBlock({ q }) {
+  const left = (q.leftItems || []).filter(isItemUsed)
+  const right = (q.rightItems || []).filter(isItemUsed)
+  const rows = Math.max(left.length, right.length)
+  if (!rows) return null
+  const dots = q.matchStyle === 'dots'
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', columnGap: dots ? 72 : 40, rowGap: 12, alignItems: 'center', marginTop: 10, marginLeft: 20, fontSize: 12, breakInside: 'avoid', pageBreakInside: 'avoid', ...textSizeStyle(q) }}>
+      {Array.from({ length: rows }).flatMap((_, i) => [
+        <div key={`l${i}`} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {left[i] && (
+            <>
+              <span style={{ flexShrink: 0 }}>{i + 1}.</span>
+              <MatchItem item={left[i]} owner={q} />
+              {dots ? <MatchDot /> : <span style={{ flexShrink: 0, whiteSpace: 'pre' }}>(      )</span>}
+            </>
+          )}
+        </div>,
+        <div key={`r${i}`} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {right[i] && (
+            <>
+              {dots && <MatchDot />}
+              <span style={{ flexShrink: 0 }}>({optionLetter(i)})</span>
+              <MatchItem item={right[i]} owner={q} />
+            </>
+          )}
+        </div>,
+      ])}
     </div>
   )
 }
@@ -163,28 +292,38 @@ export default function PrintQuestionPaper() {
               Attempt all questions in this section.
             </div>
 
-            {(section.questions || []).map((q, qi) => (
-              <div key={qi} className="qp-question" style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 16, breakInside: 'avoid', pageBreakInside: 'avoid' }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 13, color: '#1e293b' }}>
-                    <strong>{qi + 1}.</strong> {q.text}
+            {(section.questions || []).map((q, qi) => {
+              const withParts = hasParts(q)
+              const isMatch = q.type === 'match'
+              return (
+                <div key={qi} className="qp-question" style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 16, breakInside: 'avoid', pageBreakInside: 'avoid' }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, color: '#1e293b', ...textSizeStyle(q) }}>
+                      <strong>{qi + 1}.</strong> <PrintText text={q.text} owner={q} />
+                    </div>
+
+                    {q.imageUrl && (
+                      <img src={printImageUrl(q.imageUrl)} alt=""
+                        style={{ ...imageSizeStyle(q.imageSize, LEGACY_QUESTION_IMAGE, 'calc(100% - 20px)'), marginTop: 8, marginLeft: 20, display: 'block' }} />
+                    )}
+
+                    {isMatch ? (
+                      <MatchBlock q={q} />
+                    ) : withParts ? (
+                      q.parts.map((part, pi) => (
+                        <SubPart key={pi} part={part} label={partLabel(q.partLabelStyle, pi)} lineCount={answerLineCount(q.type)} />
+                      ))
+                    ) : (
+                      <>
+                        {q.type === 'MCQ' && <McqOptions owner={q} />}
+                        <AnswerLines count={answerLineCount(q.type)} style={{ marginLeft: 20, marginTop: 10 }} />
+                      </>
+                    )}
                   </div>
-
-                  {q.imageUrl && (
-                    <img src={q.imageUrl} alt="" style={{ maxWidth: 220, maxHeight: 160, marginTop: 8, marginLeft: 20, display: 'block' }} />
-                  )}
-
-                  {q.type === 'MCQ' && <McqOptions q={q} />}
-
-                  <div style={{ marginLeft: 20, marginTop: 10 }}>
-                    {Array.from({ length: answerLineCount(q.type) }).map((_, li) => (
-                      <div key={li} style={{ borderBottom: '1px solid #cbd5e1', height: 20 }} />
-                    ))}
-                  </div>
+                  <div style={{ fontSize: 12, color: '#64748b', whiteSpace: 'nowrap' }}>[{isMatch || withParts ? questionMarks(q) : q.marks}]</div>
                 </div>
-                <div style={{ fontSize: 12, color: '#64748b', whiteSpace: 'nowrap' }}>[{q.marks}]</div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         ))}
 
