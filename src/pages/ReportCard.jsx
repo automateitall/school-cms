@@ -3,6 +3,7 @@ import Layout from '../components/layout/Layout'
 import api from '../lib/api'
 import { getCachedClasses, getCachedSettings } from '../lib/cache'
 import { SkeletonBlock, rowBg } from '../components/Skeleton'
+import { examGroupFor, studentsWithMarks, includedExams } from '../lib/examGroups'
 
 export default function ReportCard() {
   const [students, setStudents] = useState([])
@@ -26,6 +27,40 @@ export default function ReportCard() {
   useEffect(() => {
     getCachedSettings(api).then(s => setCurrentSession(s.currentSession)).catch(() => {})
   }, [])
+
+  // Exams in the selected exam's group, which of them have marks for this class, and which are ticked
+  const [loadedGroup, setLoadedGroup] = useState(null)
+  const [selectedExams, setSelectedExams] = useState([])
+  const [showRank, setShowRank] = useState(false)
+  const groupKey = `${selectedClass}|${examType}|${currentSession}`
+  const examGroup = loadedGroup?.key === groupKey ? loadedGroup : null
+  useEffect(() => {
+    if (!selectedClass || !examType || !examTypes.length) return
+    let cancelled = false
+    const group = examGroupFor(examType, examTypes)
+    api.get(`/students?class=${encodeURIComponent(selectedClass)}`)
+      .then(async studRes => {
+        const withMarks = await studentsWithMarks(api, selectedClass, group, studRes.data.map(s => s.id), currentSession)
+        if (cancelled) return
+        setLoadedGroup({ key: `${selectedClass}|${examType}|${currentSession}`, names: group, withMarks, students: studRes.data })
+        setSelectedExams(includedExams(group, null, withMarks))
+      })
+      .catch(console.error)
+    return () => { cancelled = true }
+  }, [selectedClass, examType, examTypes, currentSession])
+
+  const toggleExam = (name) => {
+    setSelectedExams(prev => {
+      const next = prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name]
+      return examGroup.names.filter(n => next.includes(n))
+    })
+  }
+
+  // Included exams where some classmates have marks but these students do not
+  const missingWarnings = examGroup ? selectedExams
+    .filter(name => examGroup.withMarks[name]?.size > 0)
+    .map(name => ({ name, students: examGroup.students.filter(s => !examGroup.withMarks[name].has(s.id)) }))
+    .filter(w => w.students.length > 0) : []
 
   const generateReports = async () => {
     if (!selectedClass || !examType) return alert('Select a class and exam type')
@@ -75,6 +110,42 @@ export default function ReportCard() {
             </select>
           </div>
         </div>
+        {examGroup && (
+          <div className="mb-4">
+            <p className="block text-sm font-medium text-gray-700 mb-2">Exams included in the report card</p>
+            <div className="flex flex-wrap gap-x-6 gap-y-2">
+              {examGroup.names.map((name, idx) => {
+                const isFinal = idx === examGroup.names.length - 1
+                const hasMarks = examGroup.withMarks[name]?.size > 0
+                return (
+                  <label key={name} className="flex items-center gap-2 text-sm text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={isFinal || selectedExams.includes(name)}
+                      disabled={isFinal}
+                      onChange={() => toggleExam(name)}
+                    />
+                    {name}
+                    {!hasMarks && <span className="text-gray-400 text-xs">no marks entered</span>}
+                  </label>
+                )
+              })}
+              <label className="flex items-center gap-2 text-sm text-gray-700 pl-6 border-l border-gray-200">
+                <input type="checkbox" checked={showRank} onChange={e => setShowRank(e.target.checked)} />
+                Show rank on report card
+              </label>
+            </div>
+            {missingWarnings.length > 0 && (
+              <div style={{ background: '#fff8e6', color: '#92400e' }} className="mt-3 rounded-lg px-3 py-2 text-xs space-y-1">
+                {missingWarnings.map(w => (
+                  <p key={w.name}>
+                    {w.students.length} {w.students.length === 1 ? 'student has' : 'students have'} no {w.name} marks and will count as 0: {w.students.map(s => s.name).join(', ')}
+                  </p>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         <button
           onClick={generateReports}
           disabled={loading}
@@ -156,7 +227,7 @@ export default function ReportCard() {
                     <td className="px-4 py-3">
                       {report.marks?.length > 0 ? (
                         <button
-                          onClick={() => window.open(`/print/report-card/${s.id}?examType=${encodeURIComponent(examType)}&session=${encodeURIComponent(currentSession)}`, '_blank')}
+                          onClick={() => window.open(`/print/report-card/${s.id}?examType=${encodeURIComponent(examType)}&session=${encodeURIComponent(currentSession)}${examGroup ? `&exams=${encodeURIComponent(selectedExams.join(','))}` : ''}${showRank ? '&rank=1' : ''}`, '_blank')}
                           style={{ background: '#083e78' }}
                           className="text-white px-3 py-1.5 rounded text-xs font-medium hover:opacity-90"
                         >

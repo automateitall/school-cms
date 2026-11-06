@@ -1,13 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import api from '../lib/api'
-
-const EXAM_GROUPS = {
-  'Unit Test 1': ['Unit Test 1'],
-  'Unit Test 2': ['Unit Test 2'],
-  'Half Yearly': ['Unit Test 1', 'Unit Test 2', 'Half Yearly'],
-  'Final Exam': ['Unit Test 1', 'Unit Test 2', 'Half Yearly', 'Final Exam'],
-}
+import { examGroupFor, studentsWithMarks, includedExams } from '../lib/examGroups'
 
 const cellStyle = (isHeader, headerColor, center) => ({
   border: '0.5px solid #e2e8f0',
@@ -17,11 +11,29 @@ const cellStyle = (isHeader, headerColor, center) => ({
   whiteSpace: 'nowrap',
 })
 
+// Sum of one student's marks over the given subjects and exams, a missing mark counting as 0.
+// Marks arrive newest first; like the subject table, the last one seen for a subject and exam wins.
+const combinedTotal = (marks, subjectNames, examNames) => {
+  const map = {}
+  examNames.forEach(name => {
+    marks.forEach(m => {
+      if (m?.examType !== name || !m?.subject) return
+      if (!map[m.subject]) map[m.subject] = {}
+      map[m.subject][name] = m.marks
+    })
+  })
+  return subjectNames.reduce((sum, subj) =>
+    sum + examNames.reduce((s, name) => s + (map[subj]?.[name] ?? 0), 0), 0)
+}
+
 export default function PrintReportCard() {
   const { studentId } = useParams()
   const [searchParams] = useSearchParams()
   const examTypeParam = searchParams.get('examType') || 'Unit Test 1'
   const session = searchParams.get('session') || '2026-27'
+  // Comma-separated exams chosen on the Report Card page; missing means "drop exams nobody has marks for"
+  const examsParam = searchParams.get('exams')
+  const showRank = searchParams.get('rank') === '1'
 
   const [student, setStudent] = useState(null)
   const [examTypes, setExamTypes] = useState([])
@@ -44,13 +56,18 @@ export default function PrintReportCard() {
         const studentData = studentRes.data
         const allExamTypes = examTypesRes.data
 
-        const groupNames = (EXAM_GROUPS[examTypeParam] || [examTypeParam])
-          .filter(name => allExamTypes.some(et => et.name === name))
+        const fullGroup = examGroupFor(examTypeParam, allExamTypes)
 
         const [subjectsRes, studentsRes] = await Promise.all([
           api.get(`/subjects?class=${encodeURIComponent(studentData.class)}`),
           api.get(`/students?class=${encodeURIComponent(studentData.class)}`)
         ])
+
+        const requested = examsParam ? examsParam.split(',').map(n => n.trim()).filter(Boolean) : null
+        const withMarks = requested || fullGroup.length <= 1 ? {} : await studentsWithMarks(
+          api, studentData.class, fullGroup.slice(0, -1), studentsRes.data.map(s => s.id), session
+        )
+        const groupNames = includedExams(fullGroup, requested, withMarks)
 
         const marksResults = await Promise.all(
           groupNames.map(name => api.get(`/marks?studentId=${studentId}&examType=${encodeURIComponent(name)}&session=${encodeURIComponent(session)}`))
@@ -66,19 +83,22 @@ export default function PrintReportCard() {
           })
         })
 
+        // Rank on the combined total of the exams shown as columns; equal totals share a rank (1, 2, 2, 4)
         let rankInfo = null
-        const finalExamType = groupNames[groupNames.length - 1]
-        if (finalExamType) {
+        if (showRank && groupNames.length) {
           const classmateMarksRes = await Promise.all(
-            studentsRes.data.map(s => api.get(`/marks?studentId=${s.id}&examType=${encodeURIComponent(finalExamType)}&session=${encodeURIComponent(session)}`))
+            studentsRes.data.map(s => api.get(`/marks?studentId=${s.id}&session=${encodeURIComponent(session)}`))
           )
+          const subjectNames = subjectsRes.data.map(subj => subj.name)
           const totals = studentsRes.data.map((s, idx) => ({
             studentId: s.id,
-            total: (classmateMarksRes[idx]?.data || []).reduce((sum, m) => sum + (m?.marks || 0), 0)
+            total: combinedTotal(classmateMarksRes[idx]?.data || [], subjectNames, groupNames)
           }))
-          totals.sort((a, b) => b.total - a.total)
-          const position = totals.findIndex(t => t.studentId === studentId) + 1
-          rankInfo = { position, total: totals.length }
+          const own = totals.find(t => t.studentId === studentId)
+          if (own) {
+            const position = totals.filter(t => t.total > own.total).length + 1
+            rankInfo = { position, total: totals.length }
+          }
         }
 
         if (cancelled) return
@@ -97,7 +117,7 @@ export default function PrintReportCard() {
 
     load()
     return () => { cancelled = true }
-  }, [studentId, examTypeParam, session])
+  }, [studentId, examTypeParam, session, examsParam, showRank])
 
   useEffect(() => {
     if (student && examTypeParam) {
@@ -299,7 +319,7 @@ export default function PrintReportCard() {
           </table>
         )}
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginTop: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${showRank ? 3 : 2}, 1fr)`, gap: 10, marginTop: 14 }}>
           <div style={summaryCardStyle}>
             <div style={labelStyle}>Total Marks</div>
             <div style={valueStyle}>{grandTotalObtained}/{grandTotalMax}</div>
@@ -310,10 +330,12 @@ export default function PrintReportCard() {
               {grandPct.toFixed(1)}%
             </div>
           </div>
-          <div style={summaryCardStyle}>
-            <div style={labelStyle}>Rank</div>
-            <div style={valueStyle}>{rank ? rank.position : '—'}</div>
-          </div>
+          {showRank && (
+            <div style={summaryCardStyle}>
+              <div style={labelStyle}>Rank</div>
+              <div style={valueStyle}>{rank ? rank.position : '—'}</div>
+            </div>
+          )}
         </div>
 
         <div style={{ border: '1px solid #ccc', borderRadius: '2px', padding: '12px 16px', marginTop: 16, marginBottom: '24px' }}>
