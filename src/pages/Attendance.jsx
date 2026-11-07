@@ -38,12 +38,9 @@ function Banner({ msg }) {
 
 // ---------------- Mark ----------------
 
-function TodayPanel({ date, onPick, refreshKey }) {
-  const [status, setStatus] = useState(null)
-  useEffect(() => {
-    api.get(`/attendance/status?date=${date}`).then(res => setStatus(res.data)).catch(() => setStatus(null))
-  }, [date, refreshKey])
-  if (!status || status.rows.length === 0) return null
+// Which classes are marked on the chosen day. The data comes from MarkTab, fetched once per date.
+function TodayPanel({ date, status, onPick }) {
+  if (!status || status.date !== date || status.rows.length === 0) return null
   const t = status.totals
   return (
     <div className={`${card} p-4`}>
@@ -71,6 +68,7 @@ function TodayPanel({ date, onPick, refreshKey }) {
 }
 
 function MarkTab({ classes, holidays }) {
+  const { user } = useAuth()
   const [selectedClass, setSelectedClass] = useState('')
   const [date, setDate] = useState(todayKey())
   const [students, setStudents] = useState([])
@@ -80,33 +78,54 @@ function MarkTab({ classes, holidays }) {
   const [loadedKey, setLoadedKey] = useState('')
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState(null)
-  const [refreshKey, setRefreshKey] = useState(0)
+  const [dayStatus, setDayStatus] = useState(null)
 
   const key = `${selectedClass}|${date}`
   const loading = Boolean(selectedClass) && loadedKey !== key
 
+  // Day status for the chips: one request per date. Saving updates it in place rather than fetching again.
+  useEffect(() => {
+    let cancelled = false
+    api.get(`/attendance/status?date=${date}`)
+      .then(res => { if (!cancelled) setDayStatus(res.data) })
+      .catch(() => { if (!cancelled) setDayStatus(null) })
+    return () => { cancelled = true }
+  }, [date])
+
+  // The class itself: pupils, saved records and who saved them, in one request
   useEffect(() => {
     if (!selectedClass || !date) return
     let cancelled = false
-    Promise.all([
-      api.get(`/students?class=${encodeURIComponent(selectedClass)}`),
-      api.get(`/attendance?class=${encodeURIComponent(selectedClass)}&date=${date}`),
-      api.get(`/attendance/status?date=${date}`),
-    ]).then(([s, a, st]) => {
-      if (cancelled) return
-      const existing = Object.fromEntries(a.data.map(r => [r.studentId, r.status]))
-      const sorted = [...s.data].sort((x, y) => String(x.rollNo).localeCompare(String(y.rollNo), undefined, { numeric: true }))
-      setStudents(sorted)
-      // Everyone starts present; saved days show what was saved
-      setMarks(Object.fromEntries(sorted.map(x => [x.id, existing[x.id] || 'present'])))
-      const row = st.data.rows.find(r => r.class === selectedClass)
-      setSaved(a.data.length ? { by: row?.markedBy, at: row?.markedAt } : null)
-      setDirty(false)
-      setMsg(null)
-      setLoadedKey(`${selectedClass}|${date}`)
-    }).catch(err => !cancelled && setMsg({ type: 'error', text: errText(err, 'Could not load the class') }))
+    api.get(`/attendance/class-day?class=${encodeURIComponent(selectedClass)}&date=${date}`)
+      .then(({ data }) => {
+        if (cancelled) return
+        setStudents(data.students)
+        // Everyone starts present; saved days show what was saved
+        setMarks(Object.fromEntries(data.students.map(x => [x.id, data.records[x.id] || 'present'])))
+        setSaved(Object.keys(data.records).length ? { by: data.markedBy, at: data.markedAt } : null)
+        setDirty(false)
+        setMsg(null)
+        setLoadedKey(`${data.class}|${data.date}`)
+      })
+      .catch(err => !cancelled && setMsg({ type: 'error', text: errText(err, 'Could not load the class') }))
     return () => { cancelled = true }
   }, [selectedClass, date])
+
+  // After a save, show the class as marked in the chips without another request
+  const updateDayStatus = (c) => {
+    setDayStatus(prev => {
+      if (!prev || prev.date !== date) return prev
+      const markedAt = new Date().toISOString()
+      const exists = prev.rows.some(r => r.class === selectedClass)
+      const row = { class: selectedClass, students: students.length, marked: students.length, present: c.present, absent: c.absent, late: c.late, markedBy: user?.name || 'you', markedAt }
+      const rows = exists ? prev.rows.map(r => r.class === selectedClass ? { ...r, ...row } : r) : [...prev.rows, row]
+      const totals = rows.reduce((t, r) => ({
+        classes: t.classes + 1, markedClasses: t.markedClasses + (r.marked > 0 ? 1 : 0),
+        students: t.students + r.students, present: t.present + r.present + r.late, absent: t.absent + r.absent,
+      }), { classes: 0, markedClasses: 0, students: 0, present: 0, absent: 0 })
+      return { ...prev, rows, totals }
+    })
+  }
 
   const counts = useMemo(() => {
     const c = { present: 0, absent: 0, late: 0 }
@@ -129,7 +148,7 @@ function MarkTab({ classes, holidays }) {
       setDirty(false)
       setSaved({ by: 'you', at: new Date().toISOString() })
       setMsg({ text: `Saved ${selectedClass} for ${formatDay(date)}: ${counts.present + counts.late} present, ${counts.absent} absent.` })
-      setRefreshKey(k => k + 1)
+      updateDayStatus(counts)
     } catch (err) {
       setMsg({ type: 'error', text: errText(err, 'Could not save attendance') })
     } finally {
@@ -153,7 +172,7 @@ function MarkTab({ classes, holidays }) {
         </div>
       </div>
 
-      <TodayPanel date={date} onPick={setSelectedClass} refreshKey={refreshKey} />
+      <TodayPanel date={date} status={dayStatus} onPick={setSelectedClass} />
 
       {closedReason && <Banner msg={{ type: 'warn', text: `${formatDay(date)} is ${closedReason}. The school is closed — mark only if classes were held.` }} />}
       <Banner msg={msg} />
