@@ -28,6 +28,9 @@ export const PAGE_ROLES = {
   '/settings': ADMIN,
   '/year-end': ADMIN,
   '/users': ADMIN,
+  '/fees/collect': ['SUPER_ADMIN', 'ACCOUNTANT', 'FRONT_DESK'],
+  '/fees/setup': ['SUPER_ADMIN', 'ACCOUNTANT'],
+  '/fees/reports': ['SUPER_ADMIN', 'ACCOUNTANT'],
 }
 
 export const canAccess = (role, path) => (PAGE_ROLES[path] || ADMIN).includes(role)

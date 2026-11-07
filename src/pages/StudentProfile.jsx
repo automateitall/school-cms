@@ -5,8 +5,11 @@ import api from '../lib/api'
 import { getCachedSettings } from '../lib/cache'
 import StudentFormModal from '../components/StudentFormModal'
 import { SkeletonBlock, SkeletonCircle, rowBg } from '../components/Skeleton'
+import StudentFeesTab from '../components/StudentFeesTab'
+import { useAuth } from '../context/AuthContext'
+import { canAccess } from '../lib/roles'
 
-const TABS = ['Overview', 'Marks', 'Attendance']
+const BASE_TABS = ['Overview', 'Marks', 'Attendance']
 
 function initials(name) {
   if (!name) return '?'
@@ -16,6 +19,9 @@ function initials(name) {
 export default function StudentProfile() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const { user } = useAuth()
+  // The Fees tab is for roles that can look up fees
+  const TABS = canAccess(user?.role, '/fees/collect') ? [...BASE_TABS, 'Fees'] : BASE_TABS
   const [student, setStudent] = useState(null)
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState('Overview')
@@ -524,6 +530,7 @@ export default function StudentProfile() {
           )}
         </div>
       )}
+      {tab === 'Fees' && <StudentFeesTab studentId={id} />}
     </Layout>
   )
 }

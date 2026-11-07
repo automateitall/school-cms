@@ -22,6 +22,14 @@ const categories = [
     ],
   },
   {
+    title: 'Fees',
+    links: [
+      { to: '/fees/collect', label: 'Collect Fees', icon: '💰' },
+      { to: '/fees/reports', label: 'Fee Reports', icon: '📈' },
+      { to: '/fees/setup', label: 'Fee Setup', icon: '🧾' },
+    ],
+  },
+  {
     title: 'Communication',
     links: [
       { to: '/notices', label: 'Notices', icon: '📋' },
