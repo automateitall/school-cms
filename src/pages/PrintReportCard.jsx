@@ -107,7 +107,8 @@ export default function PrintReportCard() {
         if (showAttendance) {
           const attRes = await api.get(`/attendance?studentId=${studentId}&session=${encodeURIComponent(session)}`)
           const records = attRes.data || []
-          attendanceInfo = { present: records.filter(a => a.status === 'present').length, total: records.length }
+          // Late counts as attended
+          attendanceInfo = { present: records.filter(a => a.status === 'present' || a.status === 'late').length, total: records.length }
         }
 
         if (cancelled) return

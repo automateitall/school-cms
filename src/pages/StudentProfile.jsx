@@ -215,15 +215,17 @@ export default function StudentProfile() {
   const absentCount = attendance.filter(a => a.status === 'absent').length
   const lateCount = attendance.filter(a => a.status === 'late').length
   const totalMarked = attendance.length
-  const attendancePct = totalMarked > 0 ? ((presentCount / totalMarked) * 100).toFixed(1) : '0.0'
+  // Late counts as attended
+  const attendancePct = totalMarked > 0 ? (((presentCount + lateCount) / totalMarked) * 100).toFixed(1) : '0.0'
 
   const [attYear, attMonthNum] = attMonthValue.split('-').map(Number)
   const monthRecords = attendance.filter(a => {
-    const d = new Date(a.date)
-    return d.getFullYear() === attYear && d.getMonth() + 1 === attMonthNum
+    // Dates are stored as the school day at 00:00 UTC; read the day from the stored value, not the browser's timezone
+    const [y, m] = String(a.date).slice(0, 7).split('-').map(Number)
+    return y === attYear && m === attMonthNum
   })
   const recordByDay = {}
-  monthRecords.forEach(a => { recordByDay[new Date(a.date).getDate()] = a.status })
+  monthRecords.forEach(a => { recordByDay[Number(String(a.date).slice(8, 10))] = a.status })
 
   const daysInMonth = attYear && attMonthNum ? new Date(attYear, attMonthNum, 0).getDate() : 0
   const firstWeekday = attYear && attMonthNum ? (new Date(attYear, attMonthNum - 1, 1).getDay() + 6) % 7 : 0
@@ -236,7 +238,7 @@ export default function StudentProfile() {
   const monthPresent = monthRecords.filter(a => a.status === 'present').length
   const monthAbsent = monthRecords.filter(a => a.status === 'absent').length
   const monthLate = monthRecords.filter(a => a.status === 'late').length
-  const monthPct = monthRecords.length > 0 ? ((monthPresent / monthRecords.length) * 100).toFixed(0) : 0
+  const monthPct = monthRecords.length > 0 ? (((monthPresent + monthLate) / monthRecords.length) * 100).toFixed(0) : 0
 
   const dayCellMeta = (status) => {
     if (status === 'present') return { bg: '#e6f9f0', color: '#00bf63' }

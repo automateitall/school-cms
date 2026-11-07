@@ -1,432 +1,505 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Layout from '../components/layout/Layout'
 import api from '../lib/api'
+import { useAuth } from '../context/AuthContext'
 import { getCachedClasses, getCachedSettings } from '../lib/cache'
-import { SkeletonBlock, rowBg } from '../components/Skeleton'
+import { dayKeyOf, formatDay, formatTime, isSundayKey, monthDays, thisMonth, todayKey, weekdayOf } from '../lib/dates'
 
-const STATUS_META = {
-  present: { label: 'P', color: '#00bf63', bg: '#e6f9f0' },
-  absent: { label: 'A', color: '#e53e3e', bg: '#ffeaea' },
-  late: { label: 'L', color: '#f59e0b', bg: '#fef3c7' },
+const TABS = [
+  { key: 'mark', label: 'Mark Attendance' },
+  { key: 'register', label: 'Monthly Register' },
+  { key: 'low', label: 'Low Attendance' },
+  { key: 'holidays', label: 'Holidays' },
+]
+
+// Tap order on the marking screen. Late counts as attended.
+const NEXT = { present: 'absent', absent: 'late', late: 'present' }
+const STATUS = {
+  present: { short: 'P', label: 'Present', bg: '#e6f9f0', color: '#13703f', border: '#9ae6c3' },
+  absent: { short: 'A', label: 'Absent', bg: '#ffeaea', color: '#b42318', border: '#fca5a5' },
+  late: { short: 'L', label: 'Late', bg: '#fff3d6', color: '#92400e', border: '#fcd34d' },
 }
 
-function statusMeta(status) {
-  return STATUS_META[status] || { label: '—', color: '#94a3b8', bg: 'transparent' }
-}
+const input = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none'
+const label = 'block text-xs font-medium text-gray-600 mb-1'
+const card = 'bg-white border border-gray-200 rounded-xl'
+const primaryBtn = 'text-white px-5 py-2.5 rounded-lg text-sm font-medium hover:opacity-90 transition disabled:opacity-50'
+const errText = (err, fallback) => err.response?.data?.message || fallback
 
-export default function Attendance() {
-  const [tab, setTab] = useState('mark')
-  const [classes, setClasses] = useState([])
-  const [currentSession, setCurrentSession] = useState('')
-
-  useEffect(() => {
-    getCachedClasses(api).then(setClasses).catch(() => {})
-  }, [])
-
-  useEffect(() => {
-    getCachedSettings(api).then(s => setCurrentSession(s.currentSession)).catch(() => {})
-  }, [])
-
+function Banner({ msg }) {
+  if (!msg) return null
   return (
-    <Layout>
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 style={{ color: '#083e78' }} className="text-2xl font-bold">Attendance</h1>
-          <p className="text-gray-500 text-sm mt-1">Mark daily attendance and review monthly records</p>
-        </div>
-        {currentSession && (
-          <span style={{ background: '#e8f0fb', color: '#083e78' }} className="px-3 py-1.5 rounded-lg text-xs font-semibold">
-            Session: {currentSession}
-          </span>
-        )}
-      </div>
-
-      <div className="flex gap-2 mb-5 border-b border-gray-200">
-        {[
-          { key: 'mark', label: 'Mark Attendance' },
-          { key: 'view', label: 'View Attendance' },
-        ].map(t => (
-          <button key={t.key} onClick={() => setTab(t.key)}
-            style={{ color: tab === t.key ? '#083e78' : '#94a3b8', borderColor: tab === t.key ? '#083e78' : 'transparent' }}
-            className="px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition">
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      {tab === 'mark' ? <MarkAttendanceTab classes={classes} /> : <ViewAttendanceTab classes={classes} />}
-    </Layout>
+    <div className={`rounded-lg px-4 py-3 text-sm ${msg.type === 'error' ? 'bg-red-50 text-red-600 border border-red-200' : ''}`}
+      style={msg.type === 'error' ? undefined : msg.type === 'warn' ? { background: '#fff8e6', color: '#92400e' } : { background: '#e6f9f0', color: '#13703f' }}>
+      {msg.text}
+    </div>
   )
 }
 
-function MarkAttendanceTab({ classes }) {
-  const [students, setStudents] = useState([])
-  const [attendance, setAttendance] = useState({})
+// ---------------- Mark ----------------
+
+function TodayPanel({ date, onPick, refreshKey }) {
+  const [status, setStatus] = useState(null)
+  useEffect(() => {
+    api.get(`/attendance/status?date=${date}`).then(res => setStatus(res.data)).catch(() => setStatus(null))
+  }, [date, refreshKey])
+  if (!status || status.rows.length === 0) return null
+  const t = status.totals
+  return (
+    <div className={`${card} p-4`}>
+      <div className="flex flex-wrap items-baseline justify-between gap-2 mb-3">
+        <h2 className="text-sm font-semibold" style={{ color: '#083e78' }}>
+          {date === todayKey() ? 'Today' : formatDay(date)}: {t.markedClasses} of {t.classes} classes marked
+        </h2>
+        {t.markedClasses > 0 && <p className="text-xs text-gray-500">{t.present} present · {t.absent} absent so far</p>}
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {status.rows.map(r => {
+          const done = r.marked > 0
+          return (
+            <button key={r.class} type="button" onClick={() => onPick(r.class)}
+              title={done ? `Marked by ${r.markedBy || 'someone'} · ${formatTime(r.markedAt)}` : 'Not marked yet'}
+              className="text-xs px-3 py-1.5 rounded-full border font-medium"
+              style={done ? { background: '#e6f9f0', borderColor: '#9ae6c3', color: '#13703f' } : { background: '#fff', borderColor: '#fca5a5', color: '#b42318' }}>
+              {r.class} {done ? `✓ ${r.present + r.late}/${r.students}` : '· not marked'}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function MarkTab({ classes, holidays }) {
   const [selectedClass, setSelectedClass] = useState('')
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0])
-  const [hasExisting, setHasExisting] = useState(false)
-  const [loading, setLoading] = useState(false)
+  const [date, setDate] = useState(todayKey())
+  const [students, setStudents] = useState([])
+  const [marks, setMarks] = useState({})
+  const [saved, setSaved] = useState(null) // { by, at } of the existing record, if any
+  const [dirty, setDirty] = useState(false)
+  const [loadedKey, setLoadedKey] = useState('')
   const [saving, setSaving] = useState(false)
-  const [savedMessage, setSavedMessage] = useState(false)
+  const [msg, setMsg] = useState(null)
+  const [refreshKey, setRefreshKey] = useState(0)
+
+  const key = `${selectedClass}|${date}`
+  const loading = Boolean(selectedClass) && loadedKey !== key
 
   useEffect(() => {
     if (!selectedClass || !date) return
-    const fetchStudentsAndAttendance = async () => {
-      setLoading(true)
-      try {
-        const [studentsRes, attendanceRes] = await Promise.all([
-          api.get(`/students?class=${encodeURIComponent(selectedClass)}`),
-          api.get(`/attendance?class=${encodeURIComponent(selectedClass)}&date=${date}`)
-        ])
-        setStudents(studentsRes.data)
-        const existingMap = {}
-        attendanceRes.data.forEach(a => { existingMap[a.studentId] = a.status })
-        const initial = {}
-        studentsRes.data.forEach(s => { initial[s.id] = existingMap[s.id] || 'present' })
-        setAttendance(initial)
-        setHasExisting(attendanceRes.data.length > 0)
-        setSavedMessage(false)
-      } catch (err) {
-        console.error(err)
-      } finally {
-        setLoading(false)
-      }
-    }
-    fetchStudentsAndAttendance()
+    let cancelled = false
+    Promise.all([
+      api.get(`/students?class=${encodeURIComponent(selectedClass)}`),
+      api.get(`/attendance?class=${encodeURIComponent(selectedClass)}&date=${date}`),
+      api.get(`/attendance/status?date=${date}`),
+    ]).then(([s, a, st]) => {
+      if (cancelled) return
+      const existing = Object.fromEntries(a.data.map(r => [r.studentId, r.status]))
+      const sorted = [...s.data].sort((x, y) => String(x.rollNo).localeCompare(String(y.rollNo), undefined, { numeric: true }))
+      setStudents(sorted)
+      // Everyone starts present; saved days show what was saved
+      setMarks(Object.fromEntries(sorted.map(x => [x.id, existing[x.id] || 'present'])))
+      const row = st.data.rows.find(r => r.class === selectedClass)
+      setSaved(a.data.length ? { by: row?.markedBy, at: row?.markedAt } : null)
+      setDirty(false)
+      setMsg(null)
+      setLoadedKey(`${selectedClass}|${date}`)
+    }).catch(err => !cancelled && setMsg({ type: 'error', text: errText(err, 'Could not load the class') }))
+    return () => { cancelled = true }
   }, [selectedClass, date])
 
-  const handleSubmit = async () => {
+  const counts = useMemo(() => {
+    const c = { present: 0, absent: 0, late: 0 }
+    Object.values(marks).forEach(v => { c[v] += 1 })
+    return c
+  }, [marks])
+
+  const holiday = holidays.find(h => h.date === date)
+  const closedReason = holiday ? `${holiday.name} (holiday)` : isSundayKey(date) ? 'Sunday' : null
+
+  const setAll = (status) => { setMarks(Object.fromEntries(students.map(s => [s.id, status]))); setDirty(true) }
+  const cycle = (id) => { setMarks(m => ({ ...m, [id]: NEXT[m[id]] })); setDirty(true) }
+
+  const save = async () => {
     setSaving(true)
+    setMsg(null)
     try {
-      const records = Object.entries(attendance).map(([studentId, status]) => ({ studentId, status }))
-      await api.post('/attendance', {
-        records,
-        date,
-        class: selectedClass
-      })
-      setHasExisting(true)
-      setSavedMessage(true)
-      setTimeout(() => setSavedMessage(false), 3000)
+      const records = students.map(s => ({ studentId: s.id, status: marks[s.id] }))
+      await api.post('/attendance', { class: selectedClass, date, records })
+      setDirty(false)
+      setSaved({ by: 'you', at: new Date().toISOString() })
+      setMsg({ text: `Saved ${selectedClass} for ${formatDay(date)}: ${counts.present + counts.late} present, ${counts.absent} absent.` })
+      setRefreshKey(k => k + 1)
     } catch (err) {
-      console.error(err)
+      setMsg({ type: 'error', text: errText(err, 'Could not save attendance') })
     } finally {
       setSaving(false)
     }
   }
 
-  const presentCount = Object.values(attendance).filter(v => v === 'present').length
-  const absentCount = Object.values(attendance).filter(v => v === 'absent').length
-
   return (
-    <>
-      <div className="bg-white border border-gray-200 rounded-xl p-5 mb-5">
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Class</label>
-            <select
-              value={selectedClass}
-              onChange={e => setSelectedClass(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none"
-            >
-              <option value="">Select class</option>
-              {classes.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
-            <input
-              type="date"
-              value={date}
-              onChange={e => setDate(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none"
-            />
-          </div>
+    <div className="space-y-4 pb-24">
+      <div className={`${card} p-4 grid grid-cols-1 sm:grid-cols-2 gap-4`}>
+        <div>
+          <label htmlFor="m-class" className={label}>Class</label>
+          <select id="m-class" className={input} value={selectedClass} onChange={e => setSelectedClass(e.target.value)}>
+            <option value="">Select class</option>
+            {classes.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+        <div>
+          <label htmlFor="m-date" className={label}>Date</label>
+          <input id="m-date" type="date" max={todayKey()} className={input} value={date} onChange={e => e.target.value && setDate(e.target.value)} />
         </div>
       </div>
 
-      {loading && (
-        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden mb-5">
-          <table className="w-full text-sm">
-            <thead style={{ background: '#f0f4fa' }}>
-              <tr>
-                <th className="text-left px-4 py-3 text-gray-600 font-medium">Roll No</th>
-                <th className="text-left px-4 py-3 text-gray-600 font-medium">Student Name</th>
-                <th className="text-left px-4 py-3 text-gray-600 font-medium">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {Array.from({ length: 6 }).map((_, i) => (
-                <tr key={i} style={{ background: rowBg(i) }} className="border-t border-gray-100">
-                  <td className="px-4 py-3"><SkeletonBlock width="36px" /></td>
-                  <td className="px-4 py-3"><SkeletonBlock width="140px" /></td>
-                  <td className="px-4 py-3"><SkeletonBlock width="180px" /></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      <TodayPanel date={date} onPick={setSelectedClass} refreshKey={refreshKey} />
+
+      {closedReason && <Banner msg={{ type: 'warn', text: `${formatDay(date)} is ${closedReason}. The school is closed — mark only if classes were held.` }} />}
+      <Banner msg={msg} />
+
+      {selectedClass && loading && <p className="text-sm text-gray-400">Loading {selectedClass}...</p>}
+
+      {selectedClass && !loading && students.length === 0 && (
+        <div className={`${card} p-8 text-center text-sm text-gray-500`}>No active pupils in {selectedClass}.</div>
       )}
 
-      {!loading && students.length > 0 && (
+      {selectedClass && !loading && students.length > 0 && (
         <>
-          <div className="grid grid-cols-3 gap-4 mb-5">
-            <div style={{ background: '#e8f0fb' }} className="rounded-xl p-4">
-              <p className="text-gray-500 text-sm">Total Students</p>
-              <p style={{ color: '#083e78' }} className="text-3xl font-bold">{students.length}</p>
-            </div>
-            <div style={{ background: '#e6f9f0' }} className="rounded-xl p-4">
-              <p className="text-gray-500 text-sm">Present</p>
-              <p style={{ color: '#00bf63' }} className="text-3xl font-bold">{presentCount}</p>
-            </div>
-            <div style={{ background: '#ffeaea' }} className="rounded-xl p-4">
-              <p className="text-gray-500 text-sm">Absent</p>
-              <p style={{ color: '#e53e3e' }} className="text-3xl font-bold">{absentCount}</p>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-gray-600">
+              {saved ? <>Saved{saved.by ? ` by ${saved.by}` : ''}{saved.at ? ` · ${formatTime(saved.at)}` : ''}</> : <span style={{ color: '#b42318' }}>Not marked yet</span>}
+              <span className="text-gray-400"> · tap a pupil to change: Present → Absent → Late</span>
+            </p>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setAll('present')} className="text-xs px-3 py-1.5 rounded border border-gray-300 text-gray-700 hover:bg-gray-50">All present</button>
+              <button type="button" onClick={() => setAll('absent')} className="text-xs px-3 py-1.5 rounded border border-gray-300 text-gray-700 hover:bg-gray-50">All absent</button>
             </div>
           </div>
 
-          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden mb-5">
-            <table className="w-full text-sm">
-              <thead style={{ background: '#f0f4fa' }}>
-                <tr>
-                  <th className="text-left px-4 py-3 text-gray-600 font-medium">Roll No</th>
-                  <th className="text-left px-4 py-3 text-gray-600 font-medium">Student Name</th>
-                  <th className="text-left px-4 py-3 text-gray-600 font-medium">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {students.map((s, i) => (
-                  <tr key={s.id} style={{ background: i % 2 === 0 ? '#fff' : '#fafafa' }}
-                    className="border-t border-gray-100">
-                    <td className="px-4 py-3 text-gray-500">{s.rollNo}</td>
-                    <td className="px-4 py-3 font-medium text-gray-800">{s.name}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex gap-3">
-                        <label className="flex items-center gap-1.5 cursor-pointer">
-                          <input
-                            type="radio"
-                            name={s.id}
-                            value="present"
-                            checked={attendance[s.id] === 'present'}
-                            onChange={() => setAttendance({ ...attendance, [s.id]: 'present' })}
-                          />
-                          <span style={{ color: '#00bf63' }} className="text-sm font-medium">Present</span>
-                        </label>
-                        <label className="flex items-center gap-1.5 cursor-pointer">
-                          <input
-                            type="radio"
-                            name={s.id}
-                            value="absent"
-                            checked={attendance[s.id] === 'absent'}
-                            onChange={() => setAttendance({ ...attendance, [s.id]: 'absent' })}
-                          />
-                          <span style={{ color: '#e53e3e' }} className="text-sm font-medium">Absent</span>
-                        </label>
-                        <label className="flex items-center gap-1.5 cursor-pointer">
-                          <input
-                            type="radio"
-                            name={s.id}
-                            value="late"
-                            checked={attendance[s.id] === 'late'}
-                            onChange={() => setAttendance({ ...attendance, [s.id]: 'late' })}
-                          />
-                          <span style={{ color: '#f59e0b' }} className="text-sm font-medium">Late</span>
-                        </label>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+            {students.map(s => {
+              const st = STATUS[marks[s.id]]
+              return (
+                <button key={s.id} type="button" onClick={() => cycle(s.id)}
+                  aria-label={`${s.name}, roll ${s.rollNo}: ${st.label}. Tap to change.`}
+                  className="flex items-center gap-3 text-left rounded-xl border px-3 py-2.5 min-h-[52px] transition"
+                  style={{ background: st.bg, borderColor: st.border }}>
+                  <span className="w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-sm font-bold text-white" style={{ background: st.color }}>{st.short}</span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-medium text-gray-900 truncate">{s.name}</span>
+                    <span className="block text-xs text-gray-600">Roll {s.rollNo} · {st.label}</span>
+                  </span>
+                </button>
+              )
+            })}
           </div>
 
-          {savedMessage && (
-            <div style={{ background: '#e6f9f0', color: '#00bf63' }}
-              className="rounded-xl p-4 text-center font-medium mb-3">
-              ✅ Attendance {hasExisting ? 'updated' : 'saved'} successfully!
-            </div>
-          )}
-
-          <button
-            onClick={handleSubmit}
-            disabled={saving}
-            style={{ background: '#083e78' }}
-            className="w-full text-white py-3 rounded-xl text-sm font-medium hover:opacity-90 transition disabled:opacity-50"
-          >
-            {saving ? 'Saving...' : hasExisting ? `Update Attendance for Class ${selectedClass}` : `Save Attendance for Class ${selectedClass}`}
-          </button>
+          <div className="fixed bottom-0 left-0 right-0 md:left-[220px] bg-white border-t border-gray-200 px-4 py-3 flex flex-wrap items-center justify-between gap-3 z-30">
+            <p className="text-sm">
+              <strong style={{ color: '#13703f' }}>{counts.present} present</strong>
+              {counts.late > 0 && <> · <strong style={{ color: '#92400e' }}>{counts.late} late</strong></>}
+              {' · '}<strong style={{ color: '#b42318' }}>{counts.absent} absent</strong>
+              <span className="text-gray-500"> of {students.length}</span>
+            </p>
+            <button onClick={save} disabled={saving || (!dirty && Boolean(saved))} style={{ background: '#083e78' }} className={primaryBtn}>
+              {saving ? 'Saving...' : saved && !dirty ? 'Saved' : saved ? 'Save changes' : 'Save attendance'}
+            </button>
+          </div>
         </>
       )}
-
-      {!loading && selectedClass && students.length === 0 && (
-        <div className="bg-white border border-gray-200 rounded-xl p-12 text-center text-gray-400">
-          No students found in Class {selectedClass}. Add students first.
-        </div>
-      )}
-
-      {!selectedClass && (
-        <div className="bg-white border border-gray-200 rounded-xl p-12 text-center text-gray-400">
-          Select a class to mark attendance.
-        </div>
-      )}
-    </>
+    </div>
   )
 }
 
-function ViewAttendanceTab({ classes }) {
+// ---------------- Monthly register ----------------
+
+function RegisterTab({ classes, holidays }) {
   const [viewClass, setViewClass] = useState('')
-  const [monthValue, setMonthValue] = useState(new Date().toISOString().slice(0, 7))
-  const [viewStudents, setViewStudents] = useState([])
-  const [viewAttendance, setViewAttendance] = useState([])
-  const [loading, setLoading] = useState(false)
+  const [month, setMonth] = useState(thisMonth())
+  const [data, setData] = useState(null)
+  const [error, setError] = useState('')
 
   useEffect(() => {
     if (!viewClass) return
-    const fetchData = async () => {
-      setLoading(true)
-      try {
-        const [studentsRes, attendanceRes] = await Promise.all([
-          api.get(`/students?class=${encodeURIComponent(viewClass)}`),
-          api.get(`/attendance?class=${encodeURIComponent(viewClass)}`)
-        ])
-        setViewStudents(studentsRes.data)
-        setViewAttendance(attendanceRes.data)
-      } catch (err) {
-        console.error(err)
-      } finally {
-        setLoading(false)
-      }
-    }
-    fetchData()
-  }, [viewClass])
+    let cancelled = false
+    Promise.all([
+      api.get(`/students?class=${encodeURIComponent(viewClass)}`),
+      api.get(`/attendance?class=${encodeURIComponent(viewClass)}&month=${month}`),
+    ]).then(([s, a]) => {
+      if (cancelled) return
+      const byStudent = {}
+      a.data.forEach(r => { (byStudent[r.studentId] ||= {})[dayKeyOf(r.date)] = r.status })
+      const sorted = [...s.data].sort((x, y) => String(x.rollNo).localeCompare(String(y.rollNo), undefined, { numeric: true }))
+      setData({ key: `${viewClass}|${month}`, students: sorted, byStudent })
+      setError('')
+    }).catch(err => !cancelled && setError(errText(err, 'Could not load the register')))
+    return () => { cancelled = true }
+  }, [viewClass, month])
 
-  const [year, month] = monthValue.split('-').map(Number)
-  const daysInMonth = year && month ? new Date(year, month, 0).getDate() : 0
-  const days = Array.from({ length: daysInMonth }, (_, i) => i + 1)
-
-  const byStudent = {}
-  viewAttendance.forEach(a => {
-    const d = new Date(a.date)
-    if (d.getFullYear() !== year || d.getMonth() + 1 !== month) return
-    if (!byStudent[a.studentId]) byStudent[a.studentId] = {}
-    byStudent[a.studentId][d.getDate()] = a.status
-  })
+  const days = monthDays(month)
+  const holidayName = Object.fromEntries(holidays.map(h => [h.date, h.name]))
+  const today = todayKey()
+  const shown = data && data.key === `${viewClass}|${month}` ? data : null
 
   return (
-    <>
-      <div className="bg-white border border-gray-200 rounded-xl p-5 mb-5">
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Class</label>
-            <select
-              value={viewClass}
-              onChange={e => setViewClass(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none"
-            >
-              <option value="">Select class</option>
-              {classes.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Month</label>
-            <input
-              type="month"
-              value={monthValue}
-              onChange={e => setMonthValue(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none"
-            />
-          </div>
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-3 items-end no-print">
+        <div className="min-w-[180px]">
+          <label htmlFor="r-class" className={label}>Class</label>
+          <select id="r-class" className={input} value={viewClass} onChange={e => setViewClass(e.target.value)}>
+            <option value="">Select class</option>
+            {classes.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
         </div>
+        <div>
+          <label htmlFor="r-month" className={label}>Month</label>
+          <input id="r-month" type="month" className={input} value={month} max={thisMonth()} onChange={e => e.target.value && setMonth(e.target.value)} />
+        </div>
+        {shown && <button onClick={() => window.print()} className="px-4 py-2 rounded-lg text-sm border border-gray-300 text-gray-700 hover:bg-gray-50">Print register</button>}
       </div>
-
-      {!viewClass && (
-        <div className="bg-white border border-gray-200 rounded-xl p-12 text-center text-gray-400">
-          Select a class to view attendance records.
-        </div>
-      )}
-
-      {viewClass && loading && (
-        <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
-          <table className="text-sm border-collapse">
-            <thead style={{ background: '#f0f4fa' }}>
-              <tr>
-                <th className="text-left px-4 py-3 text-gray-600 font-medium whitespace-nowrap sticky left-0" style={{ background: '#f0f4fa' }}>Roll No</th>
-                <th className="text-left px-4 py-3 text-gray-600 font-medium whitespace-nowrap">Student Name</th>
-                {days.map(d => (
-                  <th key={d} className="text-center px-2 py-3 text-gray-600 font-medium whitespace-nowrap">{d}</th>
-                ))}
-                <th className="text-center px-4 py-3 text-gray-600 font-medium whitespace-nowrap">%</th>
+      {error && <p className="text-sm text-red-600">{error}</p>}
+      {!viewClass && <div className={`${card} p-10 text-center text-sm text-gray-400`}>Select a class to see its register.</div>}
+      {viewClass && !shown && !error && <p className="text-sm text-gray-400">Loading...</p>}
+      {shown && (
+        <div className={`${card} overflow-x-auto`}>
+          <p className="px-4 pt-3 text-sm font-semibold" style={{ color: '#083e78' }}>{viewClass} · {formatDay(`${month}-01`, { month: 'long', year: 'numeric' })}</p>
+          <table className="text-xs border-collapse mt-2">
+            <thead>
+              <tr style={{ background: '#f8fafc' }}>
+                <th className="sticky left-0 bg-white text-left px-3 py-2 font-medium text-gray-600 min-w-[150px]">Pupil</th>
+                {days.map(d => {
+                  const closed = isSundayKey(d) || holidayName[d]
+                  return (
+                    <th key={d} title={holidayName[d] || (isSundayKey(d) ? 'Sunday' : '')} className="px-1 py-2 font-medium w-7 text-center"
+                      style={{ color: closed ? '#94a3b8' : '#475569', background: closed ? '#f1f5f9' : undefined }}>
+                      {Number(d.slice(8))}<span className="block text-[9px] font-normal">{'SMTWTFS'[weekdayOf(d)]}</span>
+                    </th>
+                  )
+                })}
+                <th className="px-2 py-2 font-medium text-gray-600">P</th>
+                <th className="px-2 py-2 font-medium text-gray-600">A</th>
+                <th className="px-2 py-2 font-medium text-gray-600">%</th>
               </tr>
             </thead>
             <tbody>
-              {Array.from({ length: 6 }).map((_, i) => (
-                <tr key={i} style={{ background: rowBg(i) }} className="border-t border-gray-100">
-                  <td className="px-4 py-3 sticky left-0" style={{ background: rowBg(i) }}><SkeletonBlock width="32px" /></td>
-                  <td className="px-4 py-3"><SkeletonBlock width="120px" /></td>
-                  {days.map(d => (
-                    <td key={d} className="px-1 py-2 text-center">
-                      <SkeletonBlock width="20px" height="20px" center />
-                    </td>
-                  ))}
-                  <td className="px-4 py-3"><SkeletonBlock width="30px" center /></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {viewClass && !loading && viewStudents.length === 0 && (
-        <div className="bg-white border border-gray-200 rounded-xl p-12 text-center text-gray-400">
-          No students found in Class {viewClass}.
-        </div>
-      )}
-
-      {viewClass && !loading && viewStudents.length > 0 && (
-        <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
-          <table className="text-sm border-collapse">
-            <thead style={{ background: '#f0f4fa' }}>
-              <tr>
-                <th className="text-left px-4 py-3 text-gray-600 font-medium whitespace-nowrap sticky left-0" style={{ background: '#f0f4fa' }}>Roll No</th>
-                <th className="text-left px-4 py-3 text-gray-600 font-medium whitespace-nowrap">Student Name</th>
-                {days.map(d => (
-                  <th key={d} className="text-center px-2 py-3 text-gray-600 font-medium whitespace-nowrap">{d}</th>
-                ))}
-                <th className="text-center px-4 py-3 text-gray-600 font-medium whitespace-nowrap">%</th>
-              </tr>
-            </thead>
-            <tbody>
-              {viewStudents.map((s, i) => {
-                const record = byStudent[s.id] || {}
-                const recordedDays = Object.values(record)
-                const presentCount = recordedDays.filter(st => st === 'present').length
-                const pct = recordedDays.length > 0 ? (presentCount / recordedDays.length) * 100 : 0
+              {shown.students.map(s => {
+                const rec = shown.byStudent[s.id] || {}
+                const vals = Object.values(rec)
+                const p = vals.filter(v => v !== 'absent').length
+                const a = vals.length - p
                 return (
-                  <tr key={s.id} style={{ background: i % 2 === 0 ? '#fff' : '#fafafa' }}
-                    className="border-t border-gray-100">
-                    <td className="px-4 py-3 text-gray-500 whitespace-nowrap sticky left-0" style={{ background: i % 2 === 0 ? '#fff' : '#fafafa' }}>{s.rollNo}</td>
-                    <td className="px-4 py-3 font-medium text-gray-800 whitespace-nowrap">{s.name}</td>
+                  <tr key={s.id} className="border-t border-gray-100">
+                    <td className="sticky left-0 bg-white px-3 py-1.5 whitespace-nowrap"><span className="text-gray-400 mr-1">{s.rollNo}</span>{s.name}</td>
                     {days.map(d => {
-                      const meta = statusMeta(record[d])
+                      const v = rec[d]
+                      const closed = isSundayKey(d) || holidayName[d]
                       return (
-                        <td key={d} className="px-1 py-2 text-center">
-                          <span style={{ background: meta.bg, color: meta.color }}
-                            className="inline-flex items-center justify-center w-6 h-6 rounded text-xs font-bold">
-                            {meta.label}
-                          </span>
+                        <td key={d} className="text-center py-1.5 font-semibold"
+                          style={{ background: closed ? '#f1f5f9' : undefined, color: v ? STATUS[v].color : '#cbd5e1' }}>
+                          {v ? STATUS[v].short : d > today || closed ? '' : '·'}
                         </td>
                       )
                     })}
-                    <td className="px-4 py-3 text-center font-semibold whitespace-nowrap"
-                      style={{ color: pct >= 75 ? '#00bf63' : pct >= 50 ? '#f59e0b' : '#e53e3e' }}>
-                      {recordedDays.length > 0 ? `${pct.toFixed(0)}%` : '—'}
-                    </td>
+                    <td className="px-2 text-center font-semibold" style={{ color: '#13703f' }}>{p}</td>
+                    <td className="px-2 text-center font-semibold" style={{ color: '#b42318' }}>{a}</td>
+                    <td className="px-2 text-center font-semibold">{vals.length ? Math.round((p / vals.length) * 100) : '—'}</td>
                   </tr>
                 )
               })}
             </tbody>
           </table>
+          <p className="px-4 py-3 text-xs text-gray-500">P includes Late. Grey columns are Sundays and holidays; a dot is a school day nobody marked.</p>
         </div>
       )}
-    </>
+    </div>
+  )
+}
+
+// ---------------- Low attendance ----------------
+
+function LowTab({ classes }) {
+  const [viewClass, setViewClass] = useState('')
+  const [threshold, setThreshold] = useState(75)
+  const [data, setData] = useState(null)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (!viewClass) return
+    let cancelled = false
+    api.get(`/attendance/report?class=${encodeURIComponent(viewClass)}`)
+      .then(res => { if (!cancelled) { setData(res.data); setError('') } })
+      .catch(err => !cancelled && setError(errText(err, 'Could not load the report')))
+    return () => { cancelled = true }
+  }, [viewClass])
+
+  const shown = data && data.class === viewClass ? data : null
+  const low = shown ? shown.rows.filter(r => r.pct !== null && r.pct < threshold) : []
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-3 items-end">
+        <div className="min-w-[180px]">
+          <label htmlFor="l-class" className={label}>Class</label>
+          <select id="l-class" className={input} value={viewClass} onChange={e => setViewClass(e.target.value)}>
+            <option value="">Select class</option>
+            {classes.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+        <div>
+          <label htmlFor="l-th" className={label}>Below</label>
+          <select id="l-th" className={input} value={threshold} onChange={e => setThreshold(Number(e.target.value))}>
+            {[60, 75, 80, 90].map(t => <option key={t} value={t}>{t}%</option>)}
+          </select>
+        </div>
+      </div>
+      {error && <p className="text-sm text-red-600">{error}</p>}
+      {!viewClass && <div className={`${card} p-10 text-center text-sm text-gray-400`}>Select a class.</div>}
+      {shown && (
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className={`${card} px-4 py-3`}><p className="text-xs text-gray-500">School days so far</p><p className="text-xl font-bold">{shown.schoolDays}</p></div>
+            <div className={`${card} px-4 py-3`}><p className="text-xs text-gray-500">Days marked</p><p className="text-xl font-bold">{shown.markedDays}</p></div>
+            <div className={`${card} px-4 py-3`}><p className="text-xs text-gray-500">Pupils below {threshold}%</p><p className="text-xl font-bold" style={{ color: low.length ? '#b42318' : '#13703f' }}>{low.length}</p></div>
+          </div>
+          {shown.notMarked.length > 0 && (
+            <Banner msg={{ type: 'warn', text: `${shown.notMarked.length} school ${shown.notMarked.length === 1 ? 'day was' : 'days were'} not marked for ${viewClass}${shown.notMarked.length <= 8 ? `: ${shown.notMarked.map(d => formatDay(d, { day: '2-digit', month: 'short' })).join(', ')}` : ` (latest ${formatDay(shown.notMarked[shown.notMarked.length - 1], { day: '2-digit', month: 'short' })})`}.` }} />
+          )}
+          <div className={`${card} overflow-x-auto`}>
+            <table className="w-full text-sm">
+              <thead style={{ background: '#f8fafc' }}>
+                <tr>{['Roll', 'Pupil', 'Parent', 'Phone', 'Present', 'Absent', 'Attendance'].map(h => <th key={h} className="text-left px-4 py-2.5 text-gray-600 font-medium">{h}</th>)}</tr>
+              </thead>
+              <tbody>
+                {low.length === 0 && <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">No pupil is below {threshold}%.</td></tr>}
+                {low.map(r => (
+                  <tr key={r.student.id} className="border-t border-gray-100">
+                    <td className="px-4 py-2.5">{r.student.rollNo}</td>
+                    <td className="px-4 py-2.5 font-medium text-gray-800">{r.student.name}</td>
+                    <td className="px-4 py-2.5">{r.student.parentName}</td>
+                    <td className="px-4 py-2.5 whitespace-nowrap">{r.student.parentPhone ? <a href={`tel:${r.student.parentPhone}`} style={{ color: '#083e78' }}>{r.student.parentPhone}</a> : '—'}</td>
+                    <td className="px-4 py-2.5">{r.attended}{r.late ? <span className="text-xs text-gray-500"> ({r.late} late)</span> : null}</td>
+                    <td className="px-4 py-2.5">{r.absent}</td>
+                    <td className="px-4 py-2.5 font-semibold" style={{ color: '#b42318' }}>{r.pct}%</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+// ---------------- Holidays ----------------
+
+function HolidaysTab({ holidays, reload, isAdmin }) {
+  const [form, setForm] = useState({ date: todayKey(), to: '', name: '' })
+  const [msg, setMsg] = useState(null)
+  const [saving, setSaving] = useState(false)
+
+  const add = async (e) => {
+    e.preventDefault()
+    setSaving(true)
+    setMsg(null)
+    try {
+      const res = await api.post('/attendance/holidays', { date: form.date, to: form.to || undefined, name: form.name })
+      setMsg({ text: `Added ${res.data.added} ${res.data.added === 1 ? 'day' : 'days'}${res.data.skipped ? ` (${res.data.skipped} already listed)` : ''}. Sundays are always closed and are not listed.` })
+      setForm({ date: form.date, to: '', name: '' })
+      reload()
+    } catch (err) {
+      setMsg({ type: 'error', text: errText(err, 'Could not add the holiday') })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const remove = async (h) => {
+    if (!window.confirm(`Remove ${h.name} on ${formatDay(h.date)}?`)) return
+    try {
+      await api.delete(`/attendance/holidays/${h.id}`)
+      reload()
+    } catch (err) {
+      setMsg({ type: 'error', text: errText(err, 'Could not remove the holiday') })
+    }
+  }
+
+  return (
+    <div className="space-y-4 max-w-3xl">
+      <p className="text-sm text-gray-600">Holidays apply to both CM Public School and Taare Zameen Par. Sundays are always treated as closed.</p>
+      {isAdmin && (
+        <form onSubmit={add} className={`${card} p-4 grid grid-cols-1 sm:grid-cols-4 gap-3 items-end`}>
+          <div>
+            <label htmlFor="h-date" className={label}>Date</label>
+            <input id="h-date" type="date" className={input} value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} required />
+          </div>
+          <div>
+            <label htmlFor="h-to" className={label}>Until (for a break)</label>
+            <input id="h-to" type="date" className={input} value={form.to} min={form.date} onChange={e => setForm({ ...form, to: e.target.value })} />
+          </div>
+          <div>
+            <label htmlFor="h-name" className={label}>Name</label>
+            <input id="h-name" className={input} value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="e.g. Diwali" required />
+          </div>
+          <button type="submit" disabled={saving} style={{ background: '#083e78' }} className={primaryBtn}>{saving ? 'Adding...' : 'Add holiday'}</button>
+        </form>
+      )}
+      <Banner msg={msg} />
+      <div className={`${card} overflow-x-auto`}>
+        <table className="w-full text-sm">
+          <thead style={{ background: '#f8fafc' }}><tr>{['Date', 'Holiday', ''].map(h => <th key={h} className="text-left px-4 py-2.5 text-gray-600 font-medium">{h}</th>)}</tr></thead>
+          <tbody>
+            {holidays.length === 0 && <tr><td colSpan={3} className="px-4 py-8 text-center text-gray-400">No holidays listed for this session.</td></tr>}
+            {holidays.map(h => (
+              <tr key={h.id} className="border-t border-gray-100" style={{ opacity: h.date < todayKey() ? 0.6 : 1 }}>
+                <td className="px-4 py-2.5 whitespace-nowrap">{formatDay(h.date)}</td>
+                <td className="px-4 py-2.5">{h.name}</td>
+                <td className="px-4 py-2.5 text-right">{isAdmin && <button onClick={() => remove(h)} className="text-xs text-red-600 hover:underline">Remove</button>}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+export default function Attendance() {
+  const { user } = useAuth()
+  const [tab, setTab] = useState('mark')
+  const [classes, setClasses] = useState([])
+  const [session, setSession] = useState('')
+  const [holidays, setHolidays] = useState([])
+  const [holidayVersion, setHolidayVersion] = useState(0)
+
+  useEffect(() => {
+    getCachedClasses(api).then(setClasses).catch(() => {})
+    getCachedSettings(api).then(s => setSession(s.currentSession || '')).catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    api.get('/attendance/holidays').then(res => setHolidays(res.data)).catch(() => {})
+  }, [holidayVersion])
+
+  return (
+    <Layout>
+      <style>{'@media print { .no-print, aside, nav { display: none !important; } }'}</style>
+      <div className="mb-5">
+        <h1 style={{ color: '#083e78' }} className="text-2xl font-bold">Attendance</h1>
+        <p className="text-gray-500 text-sm mt-1">Mark daily attendance, check registers and follow up low attendance{session ? ` · Session ${session}` : ''}</p>
+      </div>
+      <div className="flex gap-1 mb-5 border-b border-gray-200 overflow-x-auto no-print">
+        {TABS.map(t => (
+          <button key={t.key} onClick={() => setTab(t.key)}
+            style={{ color: tab === t.key ? '#083e78' : '#64748b', borderColor: tab === t.key ? '#083e78' : 'transparent' }}
+            className="px-4 py-2.5 text-sm font-medium border-b-2 -mb-px whitespace-nowrap">{t.label}</button>
+        ))}
+      </div>
+      {tab === 'mark' && <MarkTab classes={classes} holidays={holidays} />}
+      {tab === 'register' && <RegisterTab classes={classes} holidays={holidays} />}
+      {tab === 'low' && <LowTab classes={classes} />}
+      {tab === 'holidays' && <HolidaysTab holidays={holidays} reload={() => setHolidayVersion(v => v + 1)} isAdmin={user?.role === 'SUPER_ADMIN'} />}
+    </Layout>
   )
 }
