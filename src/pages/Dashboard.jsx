@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import Layout from '../components/layout/Layout'
 import api from '../lib/api'
 import { useAuth } from '../context/AuthContext'
+import { canAccess } from '../lib/roles'
 
 export default function Dashboard() {
   const [stats, setStats] = useState({
@@ -14,28 +15,30 @@ export default function Dashboard() {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const [students, notices, admissions] = await Promise.all([
+        // Admissions are only fetched for roles that can see them
+        const [students, notices, admissions] = await Promise.allSettled([
           api.get('/students'),
           api.get('/notices'),
-          api.get('/admissions')
+          canAccess(user?.role, '/admissions') ? api.get('/admissions') : Promise.resolve({ data: [] })
         ])
+        const count = r => r.status === 'fulfilled' ? r.value.data.length : 0
         setStats({
-          students: students.data.length,
-          notices: notices.data.length,
-          admissions: admissions.data.length
+          students: count(students),
+          notices: count(notices),
+          admissions: count(admissions)
         })
       } catch (err) {
         console.error(err)
       }
     }
     fetchStats()
-  }, [])
+  }, [user?.role])
 
   const cards = [
     { label: 'Total Students', value: stats.students, color: '#083e78', bg: '#e8f0fb' },
     { label: 'Notices Posted', value: stats.notices, color: '#00bf63', bg: '#e6f9f0' },
-    { label: 'Admission Enquiries', value: stats.admissions, color: '#ff914d', bg: '#fff3ec' },
-  ]
+    { label: 'Admission Enquiries', value: stats.admissions, color: '#ff914d', bg: '#fff3ec', path: '/admissions' },
+  ].filter(c => !c.path || canAccess(user?.role, c.path))
 
   return (
     <Layout>

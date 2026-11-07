@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
+import { canAccess, ROLE_LABELS } from '../../lib/roles'
 
 const categories = [
   {
@@ -33,6 +34,7 @@ const categories = [
     links: [
       { to: '/settings', label: 'Settings', icon: '⚙️' },
       { to: '/year-end', label: 'Year End', icon: '📅' },
+      { to: '/users', label: 'Staff Accounts', icon: '🔑' },
     ],
   },
 ]
@@ -88,6 +90,9 @@ export default function Sidebar({ open, onClose }) {
 
           <nav className="space-y-2">
             {categories.map(category => {
+              // Only the pages this role can open; a category with none is left out
+              const links = category.links.filter(link => canAccess(user?.role, link.to))
+              if (links.length === 0) return null
               const isCollapsed = collapsed[category.title]
               return (
                 <div key={category.title}>
@@ -104,7 +109,7 @@ export default function Sidebar({ open, onClose }) {
                     style={{ maxHeight: isCollapsed ? '0px' : '400px' }}
                   >
                     <div className="space-y-1 pl-2 pt-1">
-                      {category.links.map(link => (
+                      {links.map(link => (
                         <NavLink
                           key={link.to}
                           to={link.to}
@@ -132,8 +137,12 @@ export default function Sidebar({ open, onClose }) {
         <div className="px-2">
           <div className="border-t border-white/20 pt-4 mb-3">
             <p className="text-white text-sm font-medium">{user?.name}</p>
-            <p className="text-white text-xs opacity-50">{user?.role}</p>
+            <p className="text-white text-xs opacity-50">{ROLE_LABELS[user?.role] || user?.role}</p>
           </div>
+          <NavLink to="/account" onClick={onClose}
+            className="block text-white text-sm opacity-60 hover:opacity-100 transition mb-2">
+            My account
+          </NavLink>
           <button
             onClick={handleLogout}
             className="w-full text-left text-white text-sm opacity-60 hover:opacity-100 transition"

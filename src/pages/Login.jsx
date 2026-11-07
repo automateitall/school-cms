@@ -23,9 +23,9 @@ export default function Login() {
     })
 
       login(res.data.token, res.data.user)
-      navigate('/dashboard')
+      navigate(res.data.user?.mustChangePassword ? '/account' : '/dashboard')
     } catch (err) {
-      setError('Invalid email or password')
+      setError(err.response?.data?.message || 'Could not sign in. Please try again.')
     } finally {
       setLoading(false)
     }

@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState } from 'react'
+import api from '../lib/api'
 
 const AuthContext = createContext(null)
 
@@ -21,6 +22,25 @@ export function AuthProvider({ children }) {
     return () => window.removeEventListener('auth:logout', handleAuthLogout)
   }, [])
 
+  // Refresh the stored account on load, so a role change by a Super Admin shows without signing out
+  useEffect(() => {
+    if (!token) return
+    api.get('/auth/me')
+      .then(res => {
+        localStorage.setItem('user', JSON.stringify(res.data))
+        setUser(res.data)
+      })
+      .catch(() => {})
+  }, [token])
+
+  const updateUser = (changes) => {
+    setUser(prev => {
+      const next = { ...prev, ...changes }
+      localStorage.setItem('user', JSON.stringify(next))
+      return next
+    })
+  }
+
   const login = (newToken, newUser) => {
     localStorage.setItem('token', newToken)
     localStorage.setItem('user', JSON.stringify(newUser))
@@ -36,7 +56,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ token, user, login, logout }}>
+    <AuthContext.Provider value={{ token, user, login, logout, updateUser }}>
       {children}
     </AuthContext.Provider>
   )
