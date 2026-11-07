@@ -4,6 +4,8 @@ export const EXAM_GROUPS = {
   'Unit Test 2': ['Unit Test 2'],
   'Half Yearly': ['Unit Test 1', 'Unit Test 2', 'Half Yearly'],
   'Final Exam': ['Unit Test 1', 'Unit Test 2', 'Half Yearly', 'Final Exam'],
+  // The exam type is named "Final" in the CMS
+  'Final': ['Unit Test 1', 'Unit Test 2', 'Half Yearly', 'Final'],
 }
 
 // Group for an exam type, limited to exam types that exist in the CMS.

@@ -3,13 +3,9 @@ import { useParams, useSearchParams } from 'react-router-dom'
 import api from '../lib/api'
 import { examGroupFor, studentsWithMarks, includedExams } from '../lib/examGroups'
 
-const cellStyle = (isHeader, headerColor, center) => ({
-  border: '0.5px solid #e2e8f0',
-  padding: '6px 8px',
-  textAlign: center ? 'center' : 'left',
-  color: isHeader ? headerColor : undefined,
-  whiteSpace: 'nowrap',
-})
+// Same scale as the backend report endpoint and the grading legend on the card
+const gradeFor = (pct) =>
+  pct >= 90 ? 'A+' : pct >= 80 ? 'A' : pct >= 70 ? 'B+' : pct >= 60 ? 'B' : pct >= 50 ? 'C' : pct >= 33 ? 'D' : 'F'
 
 // Sum of one student's marks over the given subjects and exams, a missing mark counting as 0.
 // Marks arrive newest first; like the subject table, the last one seen for a subject and exam wins.
@@ -34,6 +30,8 @@ export default function PrintReportCard() {
   // Comma-separated exams chosen on the Report Card page; missing means "drop exams nobody has marks for"
   const examsParam = searchParams.get('exams')
   const showRank = searchParams.get('rank') === '1'
+  const logoParam = searchParams.get('logo')
+  const showAttendance = searchParams.get('attendance') === '1'
 
   const [student, setStudent] = useState(null)
   const [examTypes, setExamTypes] = useState([])
@@ -41,7 +39,10 @@ export default function PrintReportCard() {
   const [subjects, setSubjects] = useState([])
   const [marksBySubjectExam, setMarksBySubjectExam] = useState({})
   const [rank, setRank] = useState(null)
+  const [attendance, setAttendance] = useState(null)
   const [loading, setLoading] = useState(true)
+  // A photo URL that no longer loads is hidden rather than shown as a broken image
+  const [photoFailed, setPhotoFailed] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -101,7 +102,16 @@ export default function PrintReportCard() {
           }
         }
 
+        // Days present out of days marked this session, counted the same way as the student profile
+        let attendanceInfo = null
+        if (showAttendance) {
+          const attRes = await api.get(`/attendance?studentId=${studentId}&session=${encodeURIComponent(session)}`)
+          const records = attRes.data || []
+          attendanceInfo = { present: records.filter(a => a.status === 'present').length, total: records.length }
+        }
+
         if (cancelled) return
+        setAttendance(attendanceInfo)
         setStudent(studentData)
         setExamTypes(allExamTypes)
         setExamGroup(groupNames)
@@ -117,7 +127,7 @@ export default function PrintReportCard() {
 
     load()
     return () => { cancelled = true }
-  }, [studentId, examTypeParam, session, examsParam, showRank])
+  }, [studentId, examTypeParam, session, examsParam, showRank, showAttendance])
 
   useEffect(() => {
     if (student && examTypeParam) {
@@ -137,37 +147,19 @@ export default function PrintReportCard() {
     return <div style={{ padding: '2rem', textAlign: 'center', color: '#94a3b8', fontFamily: 'Arial, sans-serif' }}>Loading report card...</div>
   }
 
-  const isCMP = student?.school !== 'TZP'
-  const schoolName = student?.school === 'TZP' ? 'Taare Zameen Par Play School' : 'CM Public School'
-  const theme = isCMP ? {
-    logo: '/logo-cm.svg',
-    schoolName: 'CM PUBLIC SCHOOL',
-    schoolNameColor: '#083e78',
-    headerBorder: '2px solid #083e78',
-    badgeBg: '#e8f0fb',
-    badgeColor: '#083e78',
-    tableHeaderBg: '#083e78',
-    tableHeaderColor: '#ffffff',
-    altRowBg: '#f0f4fb',
-    totalObtainedBg: '#e8f0fb',
-    totalObtainedColor: '#083e78',
-    accent: '#083e78',
-  } : {
-    logo: '/logo-tzp.svg',
-    schoolName: 'TAARE ZAMEEN PAR PLAY SCHOOL',
-    schoolNameColor: '#c45e1e',
-    headerBorder: '2px solid #ff914d',
-    badgeBg: '#fff3ec',
-    badgeColor: '#c45e1e',
-    tableHeaderBg: '#ff914d',
-    tableHeaderColor: '#ffffff',
-    altRowBg: '#fff8f3',
-    totalObtainedBg: '#e6f9f0',
-    totalObtainedColor: '#00bf63',
-    accent: '#ff914d',
-  }
-
-  const isSingleExam = examGroup.length === 1
+  // Logo choice from the Report Card page: 'cmp', 'tzp' or 'both'; missing means the student's own school
+  const studentSchool = student?.school === 'TZP' ? 'tzp' : 'cmp'
+  const logoChoice = ['cmp', 'tzp', 'both'].includes(logoParam) ? logoParam : studentSchool
+  // The heading follows a single-school logo; with both logos it names the student's own school
+  const nameSchool = logoChoice === 'both' ? studentSchool : logoChoice
+  const isTZP = nameSchool === 'tzp'
+  const theme = isTZP
+    ? { primary: '#b4531a', tint: '#fff1e7', alt: '#fffaf6' }
+    : { primary: '#083e78', tint: '#e9f0fa', alt: '#f6f9fd' }
+  const schoolName = isTZP ? 'TAARE ZAMEEN PAR PLAY SCHOOL' : 'CM PUBLIC SCHOOL'
+  const schoolShort = isTZP ? 'Taare Zameen Par Play School' : 'CM Public School'
+  const leftLogo = logoChoice === 'tzp' ? '/logo-tzp.svg' : '/logo-cm.svg'
+  const rightLogo = logoChoice === 'both' ? '/logo-tzp.svg' : null
 
   const examMaxMarksMap = {}
   examGroup.forEach(name => {
@@ -179,36 +171,63 @@ export default function PrintReportCard() {
   const colTotalObtained = (name) =>
     subjects.reduce((sum, subj) => sum + (marksBySubjectExam[subj.name]?.[name] ?? 0), 0)
 
-  const grandTotalObtained = subjects.reduce((sum, subj) => {
-    const examValues = examGroup.map(name => marksBySubjectExam[subj.name]?.[name] ?? 0)
-    return sum + examValues.reduce((a, b) => a + b, 0)
-  }, 0)
+  const rows = subjects.map(subj => {
+    const values = examGroup.map(name => marksBySubjectExam[subj.name]?.[name] ?? 0)
+    const total = values.reduce((a, b) => a + b, 0)
+    return { subj, values, total, grade: gradeFor(totalMaxPerSubject > 0 ? (total / totalMaxPerSubject) * 100 : 0) }
+  })
+  const grandTotalObtained = rows.reduce((sum, r) => sum + r.total, 0)
   const grandTotalMax = subjects.length * totalMaxPerSubject
   const grandPct = grandTotalMax > 0 ? (grandTotalObtained / grandTotalMax) * 100 : 0
+  const passed = grandPct >= 33
+  const isSingleExam = examGroup.length === 1
 
-  const summaryCardStyle = {
-    background: '#f8fafc',
-    border: '0.5px solid #e2e8f0',
-    borderTop: `3px solid ${theme.accent}`,
-    borderRadius: 4,
-    padding: '10px 12px',
-    textAlign: 'center',
-  }
-  const labelStyle = { fontSize: 11, color: '#64748b', marginBottom: 4 }
-  const valueStyle = { fontSize: 18, fontWeight: 700, color: '#1e293b' }
+  const details = [
+    ['Student Name', student.name],
+    ['Roll No.', student.rollNo],
+    ['Class & Section', [student.class, student.section].filter(Boolean).join(' – ')],
+    ["Father's Name", student.parentName],
+    ["Mother's Name", student.motherName],
+    ['Attendance', attendance
+      ? attendance.total > 0
+        ? `${attendance.present} / ${attendance.total} days (${((attendance.present / attendance.total) * 100).toFixed(1)}%)`
+        : 'Not recorded'
+      : null],
+  ].filter(([, v]) => v)
+
+  const showPhoto = Boolean(student.photo) && !photoFailed
+
+  const tiles = [
+    { label: 'Total Marks', value: `${grandTotalObtained} / ${grandTotalMax}`, color: '#1b2430' },
+    { label: 'Percentage', value: `${grandPct.toFixed(1)}%`, color: theme.primary },
+    { label: 'Overall Grade', value: gradeFor(grandPct), color: theme.primary },
+    { label: 'Result', value: passed ? 'PASS' : 'FAIL', color: passed ? '#13703f' : '#b42318' },
+  ]
+  if (showRank) tiles.push({ label: 'Class Rank', value: rank ? rank.position : '—', color: '#1b2430' })
+
+  const label = { fontSize: 10, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#5b6675' }
+  const box = { border: '1px solid #d9dfe7', borderRadius: 6 }
+  const th = { padding: '7px 8px', fontWeight: 600, textAlign: 'center' }
+  const td = { padding: '5px 8px', textAlign: 'center' }
+  const serif = "'Libre Baskerville', Georgia, 'Times New Roman', serif"
 
   return (
-    <div style={{ background: '#f0f4fa', minHeight: '100vh', padding: 24, fontFamily: 'Arial, sans-serif' }}>
+    <div className="rc-page" style={{ background: '#eef2f7', minHeight: '100vh', padding: 24, fontFamily: "Inter, system-ui, Arial, sans-serif" }}>
+      <link rel="preconnect" href="https://fonts.googleapis.com" />
+      <link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
       <style>{`
+        @page { size: A4; margin: 0; }
         @media print {
           .no-print { display: none !important; }
-          body { margin: 0; }
-          .rc { border: none !important; box-shadow: none !important; }
+          html, body { margin: 0; background: #fff; }
+          .rc-page { padding: 0 !important; background: #fff !important; min-height: 0 !important; }
+          .rc { box-shadow: none !important; margin: 0 !important; }
+          * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
           tr { page-break-inside: avoid; }
         }
       `}</style>
 
-      <div className="no-print" style={{ display: 'flex', justifyContent: 'flex-end', maxWidth: 800, margin: '0 auto 12px' }}>
+      <div className="no-print" style={{ display: 'flex', justifyContent: 'flex-end', maxWidth: 794, margin: '0 auto 12px' }}>
         <button
           onClick={() => window.print()}
           style={{ background: '#083e78', color: 'white', padding: '8px 16px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 600 }}
@@ -217,165 +236,133 @@ export default function PrintReportCard() {
         </button>
       </div>
 
-      <div className="rc" style={{ maxWidth: 800, margin: '0 auto', padding: 24, background: 'white', border: '1px solid #e2e8f0', boxShadow: '0 1px 4px rgba(0,0,0,0.05)', color: '#1e293b' }}>
+      <div className="rc" style={{
+        width: 794, minHeight: 1123, boxSizing: 'border-box', margin: '0 auto', padding: '30px 40px 26px',
+        background: '#fff', boxShadow: '0 2px 12px rgba(15,23,42,0.08)', color: '#1b2430',
+        display: 'flex', flexDirection: 'column', gap: 10,
+      }}>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16, paddingBottom: 12, borderBottom: theme.headerBorder, marginBottom: 16 }}>
-          <img src={theme.logo} alt={schoolName} style={{ height: 'auto', width: 80, objectFit: 'contain', flexShrink: 0 }} />
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <div style={{ fontSize: 20, fontWeight: 500, color: theme.schoolNameColor }}>{theme.schoolName}</div>
-            <div style={{ fontSize: 12, color: '#64748b' }}>CC Road, Deoria, Uttar Pradesh</div>
-            <div style={{ fontSize: 11, color: '#64748b' }}>UP Board Affiliated | English Medium</div>
-            <div style={{ alignSelf: 'flex-start', marginTop: 8, background: theme.badgeBg, color: theme.badgeColor, fontSize: 13, padding: '4px 16px', borderRadius: 2 }}>
-              {examTypeParam} REPORT CARD — Session {session}
-            </div>
+        <header style={{ display: 'flex', alignItems: 'center', gap: 20, paddingBottom: 12, borderBottom: `3px double ${theme.primary}` }}>
+          <img src={leftLogo} alt="School logo" style={{ width: 84, height: 84, objectFit: 'contain', flexShrink: 0 }} />
+          <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, textAlign: 'center' }}>
+            <div style={{ fontFamily: serif, fontSize: isTZP ? 21 : 27, fontWeight: 700, letterSpacing: '0.04em', whiteSpace: 'nowrap', color: theme.primary }}>{schoolName}</div>
+            <div style={{ fontSize: 12, color: '#4a5565' }}>CC Road, Deoria, Uttar Pradesh · Ph: +91 90444 40703 / 80907 80057</div>
+            {!isTZP && (
+              <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#4a5565' }}>UP Board Affiliated · English Medium</div>
+            )}
+          </div>
+          {rightLogo
+            ? <img src={rightLogo} alt="School logo" style={{ width: 84, height: 84, objectFit: 'contain', flexShrink: 0 }} />
+            : <div style={{ width: 84, flexShrink: 0 }} />}
+        </header>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 16 }}>
+          <div style={{ fontFamily: serif, fontSize: 18 }}>Progress Report — {examTypeParam}</div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: theme.primary, background: theme.tint, padding: '5px 12px', borderRadius: 999, whiteSpace: 'nowrap' }}>
+            Session {session}
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', padding: 10, background: '#f8fafc', border: '0.5px solid #e2e8f0', borderRadius: 4, marginBottom: 16, rowGap: 8, columnGap: 16, fontSize: 13 }}>
-          <div><strong>Student Name:</strong> {student?.name}</div>
-          <div><strong>Roll No:</strong> {student?.rollNo}</div>
-          <div><strong>Class:</strong> {student?.class}</div>
-          <div><strong>Father's Name:</strong> {student?.parentName || '—'}</div>
-          <div>
-            <strong>Result:</strong>{' '}
-            <span style={{
-              background: grandPct >= 33 ? '#e6f9f0' : '#ffeaea',
-              color: grandPct >= 33 ? '#166534' : '#991b1b',
-              padding: '2px 10px', borderRadius: 4, fontWeight: 700, fontSize: 12
-            }}>
-              {grandPct >= 33 ? 'PASS' : 'FAIL'}
-            </span>
+        <section style={{ display: 'flex', gap: 20, alignItems: 'stretch' }}>
+          <div style={{ ...box, flexGrow: 1, display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', columnGap: 20, padding: '4px 16px', alignContent: 'start' }}>
+            {details.map(([k, v]) => (
+              <div key={k} style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '7px 0', borderBottom: '1px solid #edf0f4' }}>
+                <span style={label}>{k}</span>
+                <span style={{ fontSize: 14, fontWeight: 500 }}>{v}</span>
+              </div>
+            ))}
           </div>
-        </div>
+          {showPhoto && (
+            <img
+              src={student.photo}
+              alt={student.name}
+              onError={() => setPhotoFailed(true)}
+              style={{ width: 116, height: 148, flexShrink: 0, objectFit: 'cover', border: '1px solid #c3ccd8', borderRadius: 4 }}
+            />
+          )}
+        </section>
 
         {subjects.length === 0 ? (
-          <p style={{ textAlign: 'center', color: '#94a3b8', padding: '24px 0' }}>No subjects configured for Class {student?.class}.</p>
-        ) : isSingleExam ? (
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, marginBottom: 14 }}>
-            <thead>
-              <tr style={{ background: theme.tableHeaderBg }}>
-                <th style={cellStyle(true, theme.tableHeaderColor)}>Subject</th>
-                <th style={cellStyle(true, theme.tableHeaderColor, true)}>{examGroup[0]}</th>
-                <th style={cellStyle(true, theme.tableHeaderColor, true)}>Max Marks</th>
-                <th style={cellStyle(true, theme.tableHeaderColor, true)}>%</th>
-              </tr>
-            </thead>
-            <tbody>
-              {subjects.map((subj, i) => {
-                const maxForSubject = examMaxMarksMap[examGroup[0]] || 0
-                const marksValue = marksBySubjectExam[subj.name]?.[examGroup[0]] ?? 0
-                const pct = maxForSubject > 0 ? (marksValue / maxForSubject) * 100 : 0
-                return (
-                  <tr key={subj.id} style={{ background: i % 2 === 1 ? theme.altRowBg : 'white' }}>
-                    <td style={cellStyle(false)}>{subj.name}</td>
-                    <td style={cellStyle(false, null, true)}>{marksValue}</td>
-                    <td style={cellStyle(false, null, true)}>{maxForSubject}</td>
-                    <td style={cellStyle(false, null, true)}>{pct.toFixed(1)}%</td>
-                  </tr>
-                )
-              })}
-              <tr style={{ background: theme.totalObtainedBg, fontWeight: 700, color: theme.totalObtainedColor }}>
-                <td style={cellStyle(false)}>Total</td>
-                <td style={cellStyle(false, null, true)}>{grandTotalObtained}</td>
-                <td style={cellStyle(false, null, true)}>{grandTotalMax}</td>
-                <td style={cellStyle(false, null, true)}>{grandPct.toFixed(1)}%</td>
-              </tr>
-            </tbody>
-          </table>
+          <p style={{ textAlign: 'center', color: '#5b6675', padding: '24px 0' }}>No subjects configured for Class {student.class}.</p>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, marginBottom: 14 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
-              <tr style={{ background: theme.tableHeaderBg }}>
-                <th style={cellStyle(true, theme.tableHeaderColor)}>Subject</th>
+              <tr style={{ background: theme.primary, color: '#fff' }}>
+                <th style={{ ...th, textAlign: 'left', padding: '9px 12px' }}>Subject</th>
                 {examGroup.map(name => (
-                  <th key={name} style={cellStyle(true, theme.tableHeaderColor, true)}>{name} ({examMaxMarksMap[name]})</th>
+                  <th key={name} style={th}>
+                    {name}<br /><span style={{ fontWeight: 400, fontSize: 11 }}>({examMaxMarksMap[name]})</span>
+                  </th>
                 ))}
-                <th style={cellStyle(true, theme.tableHeaderColor, true)}>Total ({totalMaxPerSubject})</th>
+                {!isSingleExam && (
+                  <th style={th}>Total<br /><span style={{ fontWeight: 400, fontSize: 11 }}>({totalMaxPerSubject})</span></th>
+                )}
+                <th style={th}>Grade</th>
               </tr>
             </thead>
             <tbody>
-              {subjects.map((subj, i) => {
-                const examValues = examGroup.map(name => marksBySubjectExam[subj.name]?.[name] ?? 0)
-                const totalObtained = examValues.reduce((a, b) => a + b, 0)
-                return (
-                  <tr key={subj.id} style={{ background: i % 2 === 1 ? theme.altRowBg : 'white' }}>
-                    <td style={cellStyle(false)}>{subj.name}</td>
-                    {examValues.map((v, idx) => <td key={idx} style={cellStyle(false, null, true)}>{v}</td>)}
-                    <td style={cellStyle(false, null, true)}>{totalObtained}</td>
-                  </tr>
-                )
-              })}
-              <tr style={{ background: theme.totalObtainedBg, fontWeight: 700, color: theme.totalObtainedColor }}>
-                <td style={cellStyle(false)}>Total Obtained</td>
-                {examGroup.map(name => <td key={name} style={cellStyle(false, null, true)}>{colTotalObtained(name)}</td>)}
-                <td style={cellStyle(false, null, true)}>{grandTotalObtained}</td>
-              </tr>
-              <tr style={{ background: '#f8fafc', fontStyle: 'italic', color: '#64748b' }}>
-                <td style={cellStyle(false)}>Total Maximum</td>
-                {examGroup.map(name => <td key={name} style={cellStyle(false, null, true)}>{examMaxMarksMap[name] * subjects.length}</td>)}
-                <td style={cellStyle(false, null, true)}>{grandTotalMax}</td>
+              {rows.map((r, i) => (
+                <tr key={r.subj.id} style={{ background: i % 2 ? theme.alt : '#fff', borderBottom: '1px solid #e3e8ee' }}>
+                  <td style={{ ...td, textAlign: 'left', padding: '5px 12px', fontWeight: 500 }}>{r.subj.name}</td>
+                  {r.values.map((v, idx) => <td key={idx} style={td}>{v}</td>)}
+                  {!isSingleExam && <td style={{ ...td, fontWeight: 600 }}>{r.total}</td>}
+                  <td style={{ ...td, fontWeight: 700, color: theme.primary }}>{r.grade}</td>
+                </tr>
+              ))}
+              <tr style={{ background: theme.tint, fontWeight: 700, color: theme.primary, borderTop: `2px solid ${theme.primary}` }}>
+                <td style={{ ...td, textAlign: 'left', padding: '7px 12px' }}>Grand Total</td>
+                {examGroup.map(name => (
+                  <td key={name} style={td}>
+                    {colTotalObtained(name)}{isSingleExam ? ` / ${grandTotalMax}` : ''}
+                  </td>
+                ))}
+                {!isSingleExam && <td style={td}>{grandTotalObtained} / {grandTotalMax}</td>}
+                <td style={td}>{gradeFor(grandPct)}</td>
               </tr>
             </tbody>
           </table>
         )}
 
-        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${showRank ? 3 : 2}, 1fr)`, gap: 10, marginTop: 14 }}>
-          <div style={summaryCardStyle}>
-            <div style={labelStyle}>Total Marks</div>
-            <div style={valueStyle}>{grandTotalObtained}/{grandTotalMax}</div>
-          </div>
-          <div style={summaryCardStyle}>
-            <div style={labelStyle}>Percentage</div>
-            <div style={{ ...valueStyle, color: grandPct >= 75 ? '#00bf63' : grandPct >= 50 ? '#f59e0b' : '#e53e3e' }}>
-              {grandPct.toFixed(1)}%
-            </div>
-          </div>
-          {showRank && (
-            <div style={summaryCardStyle}>
-              <div style={labelStyle}>Rank</div>
-              <div style={valueStyle}>{rank ? rank.position : '—'}</div>
-            </div>
-          )}
-        </div>
-
-        <div style={{ border: '1px solid #ccc', borderRadius: '2px', padding: '12px 16px', marginTop: 16, marginBottom: '24px' }}>
-          <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#083e78', letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: '10px' }}>Teacher's Remarks</div>
-          {[1, 2, 3].map(i => (
-            <div key={i} style={{ borderBottom: '1px solid #e0e0e0', height: '20px', marginBottom: '12px' }} />
-          ))}
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '24px', marginBottom: '24px' }}>
-          {['Class Teacher', 'Principal', 'Parent / Guardian'].map(label => (
-            <div key={label} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-              <div style={{ height: '56px' }} />
-              <div style={{ width: '100%', borderTop: '1px solid #333', marginBottom: '6px' }} />
-              <div style={{ fontSize: '11px', color: '#444', textAlign: 'center', fontWeight: 'bold' }}>{label}</div>
+        <section style={{ display: 'grid', gridTemplateColumns: `repeat(${tiles.length}, minmax(0, 1fr))`, gap: 10 }}>
+          {tiles.map(t => (
+            <div key={t.label} style={{ ...box, padding: '8px 12px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+              <span style={label}>{t.label}</span>
+              <span style={{ fontSize: 20, fontWeight: 700, color: t.color, whiteSpace: 'nowrap' }}>{t.value}</span>
             </div>
           ))}
-        </div>
+        </section>
 
-        <div style={{ borderTop: `2px solid ${isCMP ? '#083e78' : '#ff914d'}`, paddingTop: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <div style={{ fontSize: '10px', color: '#555', lineHeight: '1.6' }}>
-            <div>{isCMP ? 'CM Public School' : 'Taare Zameen Par Play School'}</div>
-            <div>CC Road, Deoria, U.P.</div>
-            <div>Ph: +91 90444 40703 / 80907 80057</div>
+        <section style={{ display: 'flex', gap: 16 }}>
+          <div style={{ ...box, flexGrow: 1, padding: '10px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <span style={{ ...label, color: theme.primary }}>Class Teacher's Remarks</span>
+            <div style={{ borderBottom: '1px solid #cfd6df', height: 14 }} />
+            <div style={{ borderBottom: '1px solid #cfd6df', height: 14 }} />
           </div>
-          <div style={{ textAlign: 'center' }}>
-            {isCMP && (
-              <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#083e78' }}>
-                UP Board Affiliated · English Medium
-              </div>
-            )}
-            <div style={{ fontSize: '9px', color: '#888', fontStyle: 'italic', marginTop: '2px' }}>
-              "Nurturing minds, building futures"
+          <div style={{ ...box, width: 210, flexShrink: 0, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 6, fontSize: 11, color: '#3a4452' }}>
+            <span style={{ ...label, color: theme.primary }}>Grading Scale</span>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', rowGap: 3, columnGap: 8 }}>
+              <span><strong>A+</strong> 90–100</span><span><strong>B</strong> 60–69</span>
+              <span><strong>A</strong> 80–89</span><span><strong>C</strong> 50–59</span>
+              <span><strong>B+</strong> 70–79</span><span><strong>D</strong> 33–49</span>
+              <span /><span><strong>F</strong> below 33</span>
             </div>
           </div>
-          <div style={{ fontSize: '10px', color: '#555', textAlign: 'right', lineHeight: '1.6' }}>
-            <div>Session: {session}</div>
-            <div>Generated: {new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</div>
-          </div>
-        </div>
+        </section>
+
+        <section style={{ marginTop: 'auto', display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 32, paddingTop: 22 }}>
+          {['Class Teacher', 'Principal', 'Parent / Guardian'].map(l => (
+            <div key={l} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+              <div style={{ width: '100%', borderTop: '1px solid #1b2430' }} />
+              <span style={{ fontSize: 12, fontWeight: 600 }}>{l}</span>
+            </div>
+          ))}
+        </section>
+
+        <footer style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 10, borderTop: `2px solid ${theme.primary}`, fontSize: 10, color: '#4a5565' }}>
+          <span>{schoolShort} · CC Road, Deoria, U.P.</span>
+          <span style={{ fontStyle: 'italic' }}>“Nurturing minds, building futures”</span>
+          <span>Issued: {new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+        </footer>
       </div>
     </div>
   )

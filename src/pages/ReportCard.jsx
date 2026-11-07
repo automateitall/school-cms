@@ -32,6 +32,8 @@ export default function ReportCard() {
   const [loadedGroup, setLoadedGroup] = useState(null)
   const [selectedExams, setSelectedExams] = useState([])
   const [showRank, setShowRank] = useState(false)
+  const [logo, setLogo] = useState('cmp')
+  const [showAttendance, setShowAttendance] = useState(false)
   const groupKey = `${selectedClass}|${examType}|${currentSession}`
   const examGroup = loadedGroup?.key === groupKey ? loadedGroup : null
   useEffect(() => {
@@ -92,7 +94,7 @@ export default function ReportCard() {
       </div>
 
       <div className="bg-white border border-gray-200 rounded-xl p-5 mb-5">
-        <div className="grid grid-cols-2 gap-4 mb-4">
+        <div className="grid grid-cols-3 gap-4 mb-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Class</label>
             <select value={selectedClass} onChange={e => { setSelectedClass(e.target.value); setGenerated(false) }}
@@ -107,6 +109,15 @@ export default function ReportCard() {
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none">
               <option value="">Select exam type</option>
               {examTypes.map(e => <option key={e.id} value={e.name}>{e.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">School Logo</label>
+            <select value={logo} onChange={e => setLogo(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none">
+              <option value="cmp">CM Public School</option>
+              <option value="tzp">Taare Zameen Par</option>
+              <option value="both">Both logos</option>
             </select>
           </div>
         </div>
@@ -133,6 +144,10 @@ export default function ReportCard() {
               <label className="flex items-center gap-2 text-sm text-gray-700 pl-6 border-l border-gray-200">
                 <input type="checkbox" checked={showRank} onChange={e => setShowRank(e.target.checked)} />
                 Show rank on report card
+              </label>
+              <label className="flex items-center gap-2 text-sm text-gray-700">
+                <input type="checkbox" checked={showAttendance} onChange={e => setShowAttendance(e.target.checked)} />
+                Show attendance on report card
               </label>
             </div>
             {missingWarnings.length > 0 && (
@@ -227,7 +242,7 @@ export default function ReportCard() {
                     <td className="px-4 py-3">
                       {report.marks?.length > 0 ? (
                         <button
-                          onClick={() => window.open(`/print/report-card/${s.id}?examType=${encodeURIComponent(examType)}&session=${encodeURIComponent(currentSession)}${examGroup ? `&exams=${encodeURIComponent(selectedExams.join(','))}` : ''}${showRank ? '&rank=1' : ''}`, '_blank')}
+                          onClick={() => window.open(`/print/report-card/${s.id}?examType=${encodeURIComponent(examType)}&session=${encodeURIComponent(currentSession)}${examGroup ? `&exams=${encodeURIComponent(selectedExams.join(','))}` : ''}${showRank ? '&rank=1' : ''}${showAttendance ? '&attendance=1' : ''}&logo=${logo}`, '_blank')}
                           style={{ background: '#083e78' }}
                           className="text-white px-3 py-1.5 rounded text-xs font-medium hover:opacity-90"
                         >
