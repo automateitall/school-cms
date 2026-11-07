@@ -18,7 +18,6 @@ export default function Marks() {
   const [students, setStudents] = useState([])
   const [subjects, setSubjects] = useState([])
   const [marksData, setMarksData] = useState({})
-  const [markIds, setMarkIds] = useState({})
   const [editingRows, setEditingRows] = useState({})
   const [savingRows, setSavingRows] = useState({})
   const [cellWarnings, setCellWarnings] = useState({})
@@ -72,7 +71,6 @@ export default function Marks() {
       setStudents(studentsRes.data)
       setSubjects(subjectsRes.data)
       setMarksData(dataMap)
-      setMarkIds(idMap)
       setEditingRows(editMap)
       setCellWarnings({})
       setLoaded(true)
@@ -109,52 +107,40 @@ export default function Marks() {
     setEditingRows(prev => ({ ...prev, [studentId]: true }))
   }
 
-  const handleSaveRow = async (studentId) => {
-    const data = marksData[studentId] || {}
-    const hasExceeded = subjects.some(subj => {
-      const value = data[subj.name]
+  // Save one or more pupils' rows in a single request
+  const saveRows = async (studentIds) => {
+    const exceeded = studentIds.some(id => subjects.some(subj => {
+      const value = marksData[id]?.[subj.name]
       return value !== '' && value !== null && value !== undefined && parseFloat(value) > maxMarks
-    })
-    if (hasExceeded) {
+    }))
+    if (exceeded) {
       alert('Some marks exceed the maximum. Please fix before saving.')
       return
     }
 
-    setSavingRows(prev => ({ ...prev, [studentId]: true }))
+    const rows = studentIds.map(studentId => ({
+      studentId,
+      marks: Object.fromEntries(subjects
+        .map(subj => [subj.name, marksData[studentId]?.[subj.name]])
+        .filter(([, v]) => v !== '' && v !== null && v !== undefined)
+        .map(([k, v]) => [k, parseFloat(v)])),
+    }))
+
+    setSavingRows(prev => ({ ...prev, ...Object.fromEntries(studentIds.map(id => [id, true])) }))
     try {
-      const ids = { ...(markIds[studentId] || {}) }
-
-      for (const subj of subjects) {
-        const value = data[subj.name]
-        if (value === '' || value === null || value === undefined) continue
-
-        if (ids[subj.name]) {
-          await api.put(`/marks/${ids[subj.name]}`, {
-            marks: parseFloat(value),
-            maxMarks
-          })
-        } else {
-          const res = await api.post('/marks', {
-            studentId,
-            subject: subj.name,
-            examType: selectedExamType,
-            marks: parseFloat(value),
-            maxMarks,
-            class: selectedClass
-          })
-          ids[subj.name] = res.data.mark.id
-        }
-      }
-
-      setMarkIds(prev => ({ ...prev, [studentId]: ids }))
-      setEditingRows(prev => ({ ...prev, [studentId]: false }))
+      await api.post('/marks/bulk', { class: selectedClass, examType: selectedExamType, rows })
+      setEditingRows(prev => ({ ...prev, ...Object.fromEntries(studentIds.map(id => [id, false])) }))
     } catch (err) {
       console.error(err)
-      alert('Failed to save marks')
+      alert(err.response?.data?.message || 'Failed to save marks')
     } finally {
-      setSavingRows(prev => ({ ...prev, [studentId]: false }))
+      setSavingRows(prev => ({ ...prev, ...Object.fromEntries(studentIds.map(id => [id, false])) }))
     }
   }
+
+  const handleSaveRow = (studentId) => saveRows([studentId])
+  const editingIds = students.filter(s => editingRows[s.id]).map(s => s.id)
+  const savingAny = Object.values(savingRows).some(Boolean)
 
   return (
     <Layout>
@@ -231,6 +217,20 @@ export default function Marks() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {loaded && !loading && students.length > 0 && editingIds.length > 1 && (
+        <div className="flex items-center justify-end gap-3 mb-3">
+          <span className="text-sm text-gray-500">{editingIds.length} rows being edited</span>
+          <button
+            onClick={() => saveRows(editingIds)}
+            disabled={savingAny}
+            style={{ background: '#083e78' }}
+            className="text-white px-5 py-2 rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-50"
+          >
+            {savingAny ? 'Saving...' : `Save all ${editingIds.length} rows`}
+          </button>
         </div>
       )}
 

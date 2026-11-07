@@ -8,30 +8,16 @@ export const EXAM_GROUPS = {
   'Final': ['Unit Test 1', 'Unit Test 2', 'Half Yearly', 'Final'],
 }
 
-// Group for an exam type, limited to exam types that exist in the CMS.
-export function examGroupFor(examType, allExamTypes) {
-  return (EXAM_GROUPS[examType] || [examType]).filter(name => allExamTypes.some(et => et.name === name))
-}
+// Group for an exam type; the backend drops names that are not exam types in the CMS
+export const groupFor = (examType) => EXAM_GROUPS[examType] || [examType]
 
-// { examName: Set of studentIds with at least one mark } for the given class students, one request per exam.
-export async function studentsWithMarks(api, className, examNames, studentIds, session) {
-  const inClass = new Set(studentIds)
-  const sessionQuery = session ? `&session=${encodeURIComponent(session)}` : ''
-  const results = await Promise.all(examNames.map(name =>
-    api.get(`/marks?class=${encodeURIComponent(className)}&examType=${encodeURIComponent(name)}${sessionQuery}`)
-  ))
-  const byExam = {}
-  results.forEach((res, idx) => {
-    byExam[examNames[idx]] = new Set((res.data || []).map(m => m?.studentId).filter(id => inClass.has(id)))
-  })
-  return byExam
-}
-
-// The final exam is always kept. Others are kept when named in `requested`, or, with no request,
-// when at least one student in the class has marks for them.
-export function includedExams(groupNames, requested, withMarks) {
-  const finalExam = groupNames[groupNames.length - 1]
-  return groupNames.filter(name =>
-    name === finalExam || (requested ? requested.includes(name) : withMarks[name]?.size > 0)
-  )
+// Query string for GET /report-cards from the Report Card page's choices
+export const reportCardsQuery = ({ className, studentId, examType, exams, session, attendance }) => {
+  const q = new URLSearchParams({ group: groupFor(examType).join(',') })
+  if (className) q.set('class', className)
+  if (studentId) q.set('studentId', studentId)
+  if (exams) q.set('exams', exams)
+  if (session) q.set('session', session)
+  if (attendance) q.set('attendance', '1')
+  return q.toString()
 }

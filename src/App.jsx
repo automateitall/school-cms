@@ -59,6 +59,7 @@ function AppRoutes() {
           <Route path="/marks" element={<Marks />} />
           <Route path="/report-card" element={<ReportCard />} />
           <Route path="/print/report-card/:studentId" element={<PrintReportCard />} />
+          <Route path="/print/report-cards" element={<PrintReportCard />} />
           <Route path="/question-paper" element={<QuestionPaper />} />
           <Route path="/print/question-paper/:id" element={<PrintQuestionPaper />} />
           <Route path="/print/question-papers" element={<PrintQuestionPaper />} />

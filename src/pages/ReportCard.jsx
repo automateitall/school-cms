@@ -3,88 +3,85 @@ import Layout from '../components/layout/Layout'
 import api from '../lib/api'
 import { getCachedClasses, getCachedSettings } from '../lib/cache'
 import { SkeletonBlock, rowBg } from '../components/Skeleton'
-import { examGroupFor, studentsWithMarks, includedExams } from '../lib/examGroups'
+import { reportCardsQuery } from '../lib/examGroups'
 
 export default function ReportCard() {
-  const [students, setStudents] = useState([])
   const [classes, setClasses] = useState([])
   const [examTypes, setExamTypes] = useState([])
   const [currentSession, setCurrentSession] = useState('')
   const [selectedClass, setSelectedClass] = useState('')
   const [examType, setExamType] = useState('')
-  const [reports, setReports] = useState({})
-  const [loading, setLoading] = useState(false)
-  const [generated, setGenerated] = useState(false)
-  useEffect(() => {
-    Promise.all([
-      getCachedClasses(api),
-      api.get('/examtypes').then(r => r.data)
-    ]).then(([classesData, examTypesData]) => {
-      setClasses(classesData)
-      setExamTypes(examTypesData)
-    }).catch(console.error)
-  }, [])
-  useEffect(() => {
-    getCachedSettings(api).then(s => setCurrentSession(s.currentSession)).catch(() => {})
-  }, [])
-
-  // Exams in the selected exam's group, which of them have marks for this class, and which are ticked
-  const [loadedGroup, setLoadedGroup] = useState(null)
-  const [selectedExams, setSelectedExams] = useState([])
   const [showRank, setShowRank] = useState(false)
   const [logo, setLogo] = useState('cmp')
   const [showAttendance, setShowAttendance] = useState(false)
-  const groupKey = `${selectedClass}|${examType}|${currentSession}`
-  const examGroup = loadedGroup?.key === groupKey ? loadedGroup : null
+
   useEffect(() => {
-    if (!selectedClass || !examType || !examTypes.length) return
+    Promise.all([getCachedClasses(api), api.get('/examtypes').then(r => r.data), getCachedSettings(api)])
+      .then(([classesData, examTypesData, s]) => {
+        setClasses(classesData)
+        setExamTypes(examTypesData)
+        setCurrentSession(s.currentSession || '')
+      })
+      .catch(console.error)
+  }, [])
+
+  // Exams in the selected exam's group and which have marks: one request per class and exam
+  const groupKey = selectedClass && examType && currentSession ? `${selectedClass}|${examType}|${currentSession}` : ''
+  const [group, setGroup] = useState(null)
+  const [selectedExams, setSelectedExams] = useState([])
+  useEffect(() => {
+    if (!groupKey) return
     let cancelled = false
-    const group = examGroupFor(examType, examTypes)
-    api.get(`/students?class=${encodeURIComponent(selectedClass)}`)
-      .then(async studRes => {
-        const withMarks = await studentsWithMarks(api, selectedClass, group, studRes.data.map(s => s.id), currentSession)
+    api.get(`/report-cards?${reportCardsQuery({ className: selectedClass, examType, session: currentSession })}`)
+      .then(res => {
         if (cancelled) return
-        setLoadedGroup({ key: `${selectedClass}|${examType}|${currentSession}`, names: group, withMarks, students: studRes.data })
-        setSelectedExams(includedExams(group, null, withMarks))
+        setGroup({ key: groupKey, ...res.data })
+        setSelectedExams(res.data.included)
       })
       .catch(console.error)
     return () => { cancelled = true }
-  }, [selectedClass, examType, examTypes, currentSession])
+  }, [groupKey, selectedClass, examType, currentSession])
+  const examGroup = group?.key === groupKey ? group : null
 
   const toggleExam = (name) => {
     setSelectedExams(prev => {
       const next = prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name]
-      return examGroup.names.filter(n => next.includes(n))
+      return examGroup.group.filter(n => next.includes(n))
     })
   }
 
-  // Included exams where some classmates have marks but these students do not
-  const missingWarnings = examGroup ? selectedExams
-    .filter(name => examGroup.withMarks[name]?.size > 0)
-    .map(name => ({ name, students: examGroup.students.filter(s => !examGroup.withMarks[name].has(s.id)) }))
-    .filter(w => w.students.length > 0) : []
+  // Generated summary: same numbers as the printed cards, for the exams ticked above
+  const [report, setReport] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const reportKey = `${groupKey}|${selectedExams.join(',')}|${showAttendance}`
+  const generated = report?.key === reportKey ? report : null
 
   const generateReports = async () => {
     if (!selectedClass || !examType) return alert('Select a class and exam type')
     setLoading(true)
     try {
-      const studRes = await api.get(`/students?class=${selectedClass}`)
-      setStudents(studRes.data)
-      const reportData = {}
-      await Promise.all(
-        studRes.data.map(async (s) => {
-          const res = await api.get(`/marks/report/${s.id}?examType=${examType}`)
-          reportData[s.id] = res.data
-        })
-      )
-      setReports(reportData)
-      setGenerated(true)
+      const res = await api.get(`/report-cards?${reportCardsQuery({
+        className: selectedClass, examType, exams: selectedExams.join(','), session: currentSession, attendance: showAttendance,
+      })}`)
+      setReport({ key: reportKey, ...res.data })
     } catch (err) {
       console.error(err)
+      alert(err.response?.data?.message || 'Could not generate report cards')
     } finally {
       setLoading(false)
     }
   }
+
+  const printQuery = (extra) => {
+    const q = new URLSearchParams({ examType, session: currentSession, exams: selectedExams.join(','), logo, ...extra })
+    if (showRank) q.set('rank', '1')
+    if (showAttendance) q.set('attendance', '1')
+    return q.toString()
+  }
+  const printOne = (studentId) => window.open(`/print/report-card/${studentId}?${printQuery({})}`, '_blank')
+  const printAll = () => window.open(`/print/report-cards?${printQuery({ class: selectedClass })}`, '_blank')
+
+  const select = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none'
 
   return (
     <Layout>
@@ -96,25 +93,22 @@ export default function ReportCard() {
       <div className="bg-white border border-gray-200 rounded-xl p-5 mb-5">
         <div className="grid grid-cols-3 gap-4 mb-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Class</label>
-            <select value={selectedClass} onChange={e => { setSelectedClass(e.target.value); setGenerated(false) }}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none">
+            <label htmlFor="rc-class" className="block text-sm font-medium text-gray-700 mb-1">Class</label>
+            <select id="rc-class" value={selectedClass} onChange={e => setSelectedClass(e.target.value)} className={select}>
               <option value="">Select class</option>
               {classes.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Exam Type</label>
-            <select value={examType} onChange={e => { setExamType(e.target.value); setGenerated(false) }}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none">
+            <label htmlFor="rc-exam" className="block text-sm font-medium text-gray-700 mb-1">Exam Type</label>
+            <select id="rc-exam" value={examType} onChange={e => setExamType(e.target.value)} className={select}>
               <option value="">Select exam type</option>
               {examTypes.map(e => <option key={e.id} value={e.name}>{e.name}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">School Logo</label>
-            <select value={logo} onChange={e => setLogo(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none">
+            <label htmlFor="rc-logo" className="block text-sm font-medium text-gray-700 mb-1">School Logo</label>
+            <select id="rc-logo" value={logo} onChange={e => setLogo(e.target.value)} className={select}>
               <option value="cmp">CM Public School</option>
               <option value="tzp">Taare Zameen Par</option>
               <option value="both">Both logos</option>
@@ -125,19 +119,18 @@ export default function ReportCard() {
           <div className="mb-4">
             <p className="block text-sm font-medium text-gray-700 mb-2">Exams included in the report card</p>
             <div className="flex flex-wrap gap-x-6 gap-y-2">
-              {examGroup.names.map((name, idx) => {
-                const isFinal = idx === examGroup.names.length - 1
-                const hasMarks = examGroup.withMarks[name]?.size > 0
+              {examGroup.exams.map((exam, idx) => {
+                const isFinal = idx === examGroup.exams.length - 1
                 return (
-                  <label key={name} className="flex items-center gap-2 text-sm text-gray-700">
+                  <label key={exam.name} className="flex items-center gap-2 text-sm text-gray-700">
                     <input
                       type="checkbox"
-                      checked={isFinal || selectedExams.includes(name)}
+                      checked={isFinal || selectedExams.includes(exam.name)}
                       disabled={isFinal}
-                      onChange={() => toggleExam(name)}
+                      onChange={() => toggleExam(exam.name)}
                     />
-                    {name}
-                    {!hasMarks && <span className="text-gray-400 text-xs">no marks entered</span>}
+                    {exam.name}
+                    {exam.studentsWithMarks === 0 && <span className="text-gray-400 text-xs">no marks entered</span>}
                   </label>
                 )
               })}
@@ -150,11 +143,11 @@ export default function ReportCard() {
                 Show attendance on report card
               </label>
             </div>
-            {missingWarnings.length > 0 && (
+            {examGroup.missing.filter(m => selectedExams.includes(m.exam)).length > 0 && (
               <div style={{ background: '#fff8e6', color: '#92400e' }} className="mt-3 rounded-lg px-3 py-2 text-xs space-y-1">
-                {missingWarnings.map(w => (
-                  <p key={w.name}>
-                    {w.students.length} {w.students.length === 1 ? 'student has' : 'students have'} no {w.name} marks and will count as 0: {w.students.map(s => s.name).join(', ')}
+                {examGroup.missing.filter(m => selectedExams.includes(m.exam)).map(w => (
+                  <p key={w.exam}>
+                    {w.students.length} {w.students.length === 1 ? 'student has' : 'students have'} no {w.exam} marks and will count as 0: {w.students.join(', ')}
                   </p>
                 ))}
               </div>
@@ -163,7 +156,7 @@ export default function ReportCard() {
         )}
         <button
           onClick={generateReports}
-          disabled={loading}
+          disabled={loading || !examGroup}
           style={{ background: '#083e78' }}
           className="text-white px-6 py-2.5 rounded-lg text-sm font-medium hover:opacity-90 transition disabled:opacity-50"
         >
@@ -173,26 +166,12 @@ export default function ReportCard() {
 
       {loading && (
         <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-          <div style={{ background: '#f0f4fa' }} className="px-5 py-3">
-            <SkeletonBlock width="220px" height="16px" />
-          </div>
+          <div style={{ background: '#f0f4fa' }} className="px-5 py-3"><SkeletonBlock width="220px" height="16px" /></div>
           <table className="w-full text-sm">
-            <thead style={{ background: '#f8fafc' }}>
-              <tr>
-                {['Student', 'Total', 'Percentage', 'Grade', 'Result', 'Download'].map(h => (
-                  <th key={h} className="text-left px-4 py-3 text-gray-600 font-medium">{h}</th>
-                ))}
-              </tr>
-            </thead>
             <tbody>
               {Array.from({ length: 6 }).map((_, i) => (
                 <tr key={i} style={{ background: rowBg(i) }} className="border-t border-gray-100">
-                  <td className="px-4 py-3"><SkeletonBlock width="140px" /></td>
-                  <td className="px-4 py-3"><SkeletonBlock width="60px" /></td>
-                  <td className="px-4 py-3"><SkeletonBlock width="50px" /></td>
-                  <td className="px-4 py-3"><SkeletonBlock width="30px" /></td>
-                  <td className="px-4 py-3"><SkeletonBlock width="50px" /></td>
-                  <td className="px-4 py-3"><SkeletonBlock width="130px" height="26px" /></td>
+                  {Array.from({ length: 6 }).map((__, j) => <td key={j} className="px-4 py-3"><SkeletonBlock width="80px" /></td>)}
                 </tr>
               ))}
             </tbody>
@@ -200,71 +179,59 @@ export default function ReportCard() {
         </div>
       )}
 
-      {!loading && generated && students.length > 0 && (
+      {!loading && generated && generated.rows.length > 0 && (
         <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-          <div style={{ background: '#f0f4fa' }} className="px-5 py-3 flex items-center justify-between">
+          <div style={{ background: '#f0f4fa' }} className="px-5 py-3 flex flex-wrap items-center justify-between gap-3">
             <p style={{ color: '#083e78' }} className="font-semibold text-sm">
-              {students.length} Report Cards — Class {selectedClass} · {examType}
+              {generated.rows.length} Report Cards — Class {selectedClass} · {examType} · {generated.included.join(' + ')}
             </p>
+            <button onClick={printAll} disabled={!generated.rows.some(r => r.hasMarks)} style={{ background: '#083e78' }}
+              className="text-white px-4 py-1.5 rounded-lg text-xs font-medium hover:opacity-90 disabled:opacity-50">
+              🖨 Print all ({generated.rows.filter(r => r.hasMarks).length})
+            </button>
           </div>
           <table className="w-full text-sm">
             <thead style={{ background: '#f8fafc' }}>
               <tr>
-                <th className="text-left px-4 py-3 text-gray-600 font-medium">Student</th>
-                <th className="text-left px-4 py-3 text-gray-600 font-medium">Total</th>
-                <th className="text-left px-4 py-3 text-gray-600 font-medium">Percentage</th>
-                <th className="text-left px-4 py-3 text-gray-600 font-medium">Grade</th>
-                <th className="text-left px-4 py-3 text-gray-600 font-medium">Result</th>
-                <th className="text-left px-4 py-3 text-gray-600 font-medium">Download</th>
+                {['Student', 'Total', 'Percentage', 'Grade', ...(showRank ? ['Rank'] : []), 'Result', 'Download'].map(h => (
+                  <th key={h} className="text-left px-4 py-3 text-gray-600 font-medium">{h}</th>
+                ))}
               </tr>
             </thead>
             <tbody>
-              {students.map((s, i) => {
-                const report = reports[s.id]
-                if (!report) return null
-                return (
-                  <tr key={s.id} style={{ background: i % 2 === 0 ? '#fff' : '#fafafa' }}
-                    className="border-t border-gray-100">
-                    <td className="px-4 py-3 font-medium text-gray-800">{s.name}</td>
-                    <td className="px-4 py-3 text-gray-600">{report.totalMarks}/{report.totalMax}</td>
-                    <td className="px-4 py-3 font-medium" style={{
-                      color: report.percentage >= 75 ? '#00bf63' : report.percentage >= 50 ? '#f59e0b' : '#e53e3e'
-                    }}>{report.percentage}%</td>
-                    <td className="px-4 py-3 font-bold" style={{ color: '#083e78' }}>{report.grade}</td>
-                    <td className="px-4 py-3">
-                      <span style={{
-                        background: report.percentage >= 33 ? '#e6f9f0' : '#ffeaea',
-                        color: report.percentage >= 33 ? '#00bf63' : '#e53e3e'
-                      }} className="px-2 py-1 rounded text-xs font-bold">
-                        {report.percentage >= 33 ? 'PASS' : 'FAIL'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      {report.marks?.length > 0 ? (
-                        <button
-                          onClick={() => window.open(`/print/report-card/${s.id}?examType=${encodeURIComponent(examType)}&session=${encodeURIComponent(currentSession)}${examGroup ? `&exams=${encodeURIComponent(selectedExams.join(','))}` : ''}${showRank ? '&rank=1' : ''}${showAttendance ? '&attendance=1' : ''}&logo=${logo}`, '_blank')}
-                          style={{ background: '#083e78' }}
-                          className="text-white px-3 py-1.5 rounded text-xs font-medium hover:opacity-90"
-                        >
-                          🖨 Print Report Card
-                        </button>
-                      ) : (
-                        <span className="text-gray-400 text-xs">No marks entered</span>
-                      )}
-                    </td>
-                  </tr>
-                )
-              })}
+              {generated.rows.map((r, i) => (
+                <tr key={r.student.id} style={{ background: i % 2 === 0 ? '#fff' : '#fafafa' }} className="border-t border-gray-100">
+                  <td className="px-4 py-3 font-medium text-gray-800">{r.student.name}</td>
+                  <td className="px-4 py-3 text-gray-600">{r.total}/{r.max}</td>
+                  <td className="px-4 py-3 font-medium" style={{ color: r.pct >= 75 ? '#00bf63' : r.pct >= 50 ? '#f59e0b' : '#e53e3e' }}>{r.pct}%</td>
+                  <td className="px-4 py-3 font-bold" style={{ color: '#083e78' }}>{r.grade}</td>
+                  {showRank && <td className="px-4 py-3 text-gray-700">{r.rank}</td>}
+                  <td className="px-4 py-3">
+                    <span style={{ background: r.passed ? '#e6f9f0' : '#ffeaea', color: r.passed ? '#00bf63' : '#e53e3e' }} className="px-2 py-1 rounded text-xs font-bold">
+                      {r.passed ? 'PASS' : 'FAIL'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    {r.hasMarks ? (
+                      <button onClick={() => printOne(r.student.id)} style={{ background: '#083e78' }} className="text-white px-3 py-1.5 rounded text-xs font-medium hover:opacity-90">
+                        🖨 Print Report Card
+                      </button>
+                    ) : (
+                      <span className="text-gray-400 text-xs">No marks entered</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
       )}
 
-      {!loading && generated && students.length === 0 && (
+      {!loading && generated && generated.rows.length === 0 && (
         <div className="bg-white border border-gray-200 rounded-xl p-12 text-center text-gray-400">
           No students found in Class {selectedClass}.
         </div>
       )}
     </Layout>
   )
-} 
+}
