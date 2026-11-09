@@ -11,6 +11,7 @@ import Attendance from './pages/Attendance'
 import Marks from './pages/Marks'
 import ReportCard from './pages/ReportCard'
 import PrintReportCard from './pages/PrintReportCard'
+import PrintSkillCard from './pages/PrintSkillCard'
 import QuestionPaper from './pages/QuestionPaper'
 import PrintQuestionPaper from './pages/PrintQuestionPaper'
 import Settings from './pages/Settings'
@@ -60,6 +61,8 @@ function AppRoutes() {
           <Route path="/report-card" element={<ReportCard />} />
           <Route path="/print/report-card/:studentId" element={<PrintReportCard />} />
           <Route path="/print/report-cards" element={<PrintReportCard />} />
+          <Route path="/print/skill-card/:studentId" element={<PrintSkillCard />} />
+          <Route path="/print/skill-cards" element={<PrintSkillCard />} />
           <Route path="/question-paper" element={<QuestionPaper />} />
           <Route path="/print/question-paper/:id" element={<PrintQuestionPaper />} />
           <Route path="/print/question-papers" element={<PrintQuestionPaper />} />

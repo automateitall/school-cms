@@ -3,6 +3,8 @@ import Layout from '../components/layout/Layout'
 import api from '../lib/api'
 import { getCachedClasses } from '../lib/cache'
 import { SkeletonBlock, rowBg } from '../components/Skeleton'
+import SkillsEditor from '../components/skills/SkillsEditor'
+import { isSkillClass } from '../lib/skills'
 
 export default function Subjects() {
   const [subjects, setSubjects] = useState([])
@@ -108,10 +110,15 @@ export default function Subjects() {
         ))}
       </div>
 
+      {isSkillClass(selectedClass) && <SkillsEditor className={selectedClass} />}
+
       <div className="bg-white border border-gray-200 rounded-xl p-6 mb-6">
         <h3 className="font-semibold mb-4" style={{ color: '#083e78' }}>
           Subjects for {selectedClass}
         </h3>
+        {isSkillClass(selectedClass) && (
+          <p className="text-sm text-gray-500 -mt-2 mb-4">{selectedClass} report cards use the skills above, so these subjects are not printed on them.</p>
+        )}
 
         <div className="flex gap-3 mb-6">
           <input

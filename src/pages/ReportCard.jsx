@@ -4,6 +4,8 @@ import api from '../lib/api'
 import { getCachedClasses, getCachedSettings } from '../lib/cache'
 import { SkeletonBlock, rowBg } from '../components/Skeleton'
 import { reportCardsQuery } from '../lib/examGroups'
+import { isSkillClass } from '../lib/skills'
+import SkillCardGenerator from '../components/skills/SkillCardGenerator'
 
 export default function ReportCard() {
   const [classes, setClasses] = useState([])
@@ -26,7 +28,9 @@ export default function ReportCard() {
   }, [])
 
   // Exams in the selected exam's group and which have marks: one request per class and exam
-  const groupKey = selectedClass && examType && currentSession ? `${selectedClass}|${examType}|${currentSession}` : ''
+  // Play Group prints a skills card instead (SkillCardGenerator)
+  const skillClass = isSkillClass(selectedClass)
+  const groupKey = selectedClass && examType && currentSession && !skillClass ? `${selectedClass}|${examType}|${currentSession}` : ''
   const [group, setGroup] = useState(null)
   const [selectedExams, setSelectedExams] = useState([])
   useEffect(() => {
@@ -106,16 +110,16 @@ export default function ReportCard() {
               {examTypes.map(e => <option key={e.id} value={e.name}>{e.name}</option>)}
             </select>
           </div>
-          <div>
+          {!skillClass && <div>
             <label htmlFor="rc-logo" className="block text-sm font-medium text-gray-700 mb-1">School Logo</label>
             <select id="rc-logo" value={logo} onChange={e => setLogo(e.target.value)} className={select}>
               <option value="cmp">CM Public School</option>
               <option value="tzp">Taare Zameen Par</option>
               <option value="both">Both logos</option>
             </select>
-          </div>
+          </div>}
         </div>
-        {examGroup && (
+        {!skillClass && examGroup && (
           <div className="mb-4">
             <p className="block text-sm font-medium text-gray-700 mb-2">Exams included in the report card</p>
             <div className="flex flex-wrap gap-x-6 gap-y-2">
@@ -175,15 +179,20 @@ export default function ReportCard() {
             })()}
           </div>
         )}
-        <button
+        {!skillClass && <button
           onClick={generateReports}
           disabled={loading || !examGroup}
           style={{ background: '#083e78' }}
           className="text-white px-6 py-2.5 rounded-lg text-sm font-medium hover:opacity-90 transition disabled:opacity-50"
         >
           {loading ? 'Generating...' : 'Generate Report Cards'}
-        </button>
+        </button>}
+        {skillClass && !examType && <p className="text-sm text-gray-500">Select an exam type to print {selectedClass} skills cards.</p>}
       </div>
+
+      {skillClass && examType && currentSession && (
+        <SkillCardGenerator className={selectedClass} examType={examType} session={currentSession} />
+      )}
 
       {loading && (
         <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
@@ -200,7 +209,7 @@ export default function ReportCard() {
         </div>
       )}
 
-      {!loading && generated && generated.rows.length > 0 && (
+      {!skillClass && !loading && generated && generated.rows.length > 0 && (
         <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
           <div style={{ background: '#f0f4fa' }} className="px-5 py-3 flex flex-wrap items-center justify-between gap-3">
             <p style={{ color: '#083e78' }} className="font-semibold text-sm">
@@ -248,7 +257,7 @@ export default function ReportCard() {
         </div>
       )}
 
-      {!loading && generated && generated.rows.length === 0 && (
+      {!skillClass && !loading && generated && generated.rows.length === 0 && (
         <div className="bg-white border border-gray-200 rounded-xl p-12 text-center text-gray-400">
           No students found in Class {selectedClass}.
         </div>

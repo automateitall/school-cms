@@ -3,6 +3,8 @@ import Layout from '../components/layout/Layout'
 import api from '../lib/api'
 import { getCachedClasses, getCachedSettings } from '../lib/cache'
 import { SkeletonBlock, rowBg } from '../components/Skeleton'
+import SkillAssessment from '../components/skills/SkillAssessment'
+import { isSkillClass } from '../lib/skills'
 
 const pctColor = (pct) => pct >= 75 ? '#00bf63' : pct >= 50 ? '#f59e0b' : '#e53e3e'
 
@@ -48,7 +50,8 @@ export default function Marks() {
   const selectedExamTypeObj = examTypes.find(et => et.name === selectedExamType)
   const maxMarks = selectedExamTypeObj?.maxMarks || 0
 
-  const sheetKey = selectedClass && selectedExamType ? `${selectedClass}|${selectedExamType}` : ''
+  const skillClass = isSkillClass(selectedClass)
+  const sheetKey = selectedClass && selectedExamType && !skillClass ? `${selectedClass}|${selectedExamType}` : ''
   const loaded = !!sheetKey && loadedKey === sheetKey
   const loading = !!sheetKey && !loaded && errorKey !== sheetKey
 
@@ -76,7 +79,8 @@ export default function Marks() {
 
   // Loads the grid as soon as both a class and an exam are chosen: one request for pupils, subjects and marks
   const openSheet = (className, examType) => {
-    if (!className || !examType) return
+    // Play Group is rated on skills, not marks (SkillAssessment loads its own data)
+    if (!className || !examType || isSkillClass(className)) return
     const key = `${className}|${examType}`
     requestKey.current = key
     setErrorKey('')
@@ -236,6 +240,14 @@ export default function Marks() {
         </div>
       </div>
 
+      {skillClass && selectedExamType && <SkillAssessment className={selectedClass} examType={selectedExamType} />}
+      {skillClass && !selectedExamType && (
+        <div className="bg-white border border-gray-200 rounded-xl p-12 text-center text-gray-400">
+          Select an exam type to rate {selectedClass} pupils on their skills.
+        </div>
+      )}
+
+      {!skillClass && (<>
       {loading && (
         <div className="bg-white border border-gray-200 rounded-xl overflow-hidden overflow-x-auto">
           <table className="w-full text-sm">
@@ -380,6 +392,7 @@ export default function Marks() {
           Select a class and exam type to see marks.
         </div>
       )}
+      </>)}
     </Layout>
   )
 }
