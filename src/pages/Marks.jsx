@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Layout from '../components/layout/Layout'
 import api from '../lib/api'
 import { getCachedClasses, getCachedSettings } from '../lib/cache'
@@ -6,14 +6,20 @@ import { SkeletonBlock, rowBg } from '../components/Skeleton'
 
 const pctColor = (pct) => pct >= 75 ? '#00bf63' : pct >= 50 ? '#f59e0b' : '#e53e3e'
 
+// Mark sheets already opened in this visit, keyed "class|exam": shown at once when reopened, then refreshed
+const sheetCache = new Map()
+
 export default function Marks() {
   const [classes, setClasses] = useState([])
   const [examTypes, setExamTypes] = useState([])
   const [currentSession, setCurrentSession] = useState('')
   const [selectedClass, setSelectedClass] = useState('')
   const [selectedExamType, setSelectedExamType] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [loaded, setLoaded] = useState(false)
+  // Key ("class|exam") of the sheet in the grid, and of a sheet that failed to load
+  const [loadedKey, setLoadedKey] = useState('')
+  const [errorKey, setErrorKey] = useState('')
+  const requestKey = useRef('')
+  const dirty = useRef(false) // true once the teacher edits, so a background refresh won't wipe their typing
 
   const [students, setStudents] = useState([])
   const [subjects, setSubjects] = useState([])
@@ -37,52 +43,59 @@ export default function Marks() {
   const selectedExamTypeObj = examTypes.find(et => et.name === selectedExamType)
   const maxMarks = selectedExamTypeObj?.maxMarks || 0
 
-  const handleLoad = async () => {
-    if (!selectedClass || !selectedExamType) return alert('Select a class and exam type')
-    setLoading(true)
-    setLoaded(false)
-    try {
-      const [studentsRes, subjectsRes, marksRes] = await Promise.all([
-        api.get(`/students?class=${encodeURIComponent(selectedClass)}`),
-        api.get(`/subjects?class=${encodeURIComponent(selectedClass)}`),
-        api.get(`/marks?class=${encodeURIComponent(selectedClass)}&examType=${encodeURIComponent(selectedExamType)}`)
-      ])
+  const sheetKey = selectedClass && selectedExamType ? `${selectedClass}|${selectedExamType}` : ''
+  const loaded = !!sheetKey && loadedKey === sheetKey
+  const loading = !!sheetKey && !loaded && errorKey !== sheetKey
 
-      const dataMap = {}
-      const idMap = {}
-      const editMap = {}
-
-      studentsRes.data.forEach(s => {
-        dataMap[s.id] = {}
-        idMap[s.id] = {}
-        subjectsRes.data.forEach(subj => { dataMap[s.id][subj.name] = '' })
-      })
-
-      marksRes.data.forEach(m => {
-        if (!dataMap[m.studentId]) return
-        dataMap[m.studentId][m.subject] = m.marks
-        idMap[m.studentId][m.subject] = m.id
-      })
-
-      studentsRes.data.forEach(s => {
-        editMap[s.id] = Object.keys(idMap[s.id]).length === 0
-      })
-
-      setStudents(studentsRes.data)
-      setSubjects(subjectsRes.data)
-      setMarksData(dataMap)
-      setEditingRows(editMap)
-      setCellWarnings({})
-      setLoaded(true)
-    } catch (err) {
-      console.error(err)
-      alert('Failed to load data')
-    } finally {
-      setLoading(false)
-    }
+  const applySheet = (key, data) => {
+    const dataMap = {}
+    const hasMarks = {}
+    data.students.forEach(s => {
+      dataMap[s.id] = {}
+      data.subjects.forEach(subj => { dataMap[s.id][subj.name] = '' })
+    })
+    data.marks.forEach(m => {
+      if (!dataMap[m.studentId]) return
+      dataMap[m.studentId][m.subject] = m.marks
+      hasMarks[m.studentId] = true
+    })
+    setStudents(data.students)
+    setSubjects(data.subjects)
+    setMarksData(dataMap)
+    // Pupils with no marks yet open ready to type
+    setEditingRows(Object.fromEntries(data.students.map(s => [s.id, !hasMarks[s.id]])))
+    setCellWarnings({})
+    setLoadedKey(key)
+    dirty.current = false
   }
 
+  // Loads the grid as soon as both a class and an exam are chosen: one request for pupils, subjects and marks
+  const openSheet = (className, examType) => {
+    if (!className || !examType) return
+    const key = `${className}|${examType}`
+    requestKey.current = key
+    setErrorKey('')
+    const cached = sheetCache.get(key)
+    if (cached) applySheet(key, cached)
+    api.get(`/marks/sheet?class=${encodeURIComponent(className)}&examType=${encodeURIComponent(examType)}`)
+      .then(res => {
+        sheetCache.set(key, res.data)
+        if (requestKey.current !== key || (cached && dirty.current)) return
+        applySheet(key, res.data)
+      })
+      .catch(err => {
+        console.error(err)
+        if (requestKey.current !== key || cached) return
+        setErrorKey(key)
+        alert(err.response?.data?.message || 'Failed to load marks')
+      })
+  }
+
+  const chooseClass = (value) => { setSelectedClass(value); openSheet(value, selectedExamType) }
+  const chooseExam = (value) => { setSelectedExamType(value); openSheet(selectedClass, value) }
+
   const handleMarkChange = (studentId, subjectName, value) => {
+    dirty.current = true
     const numValue = parseFloat(value)
     const exceeds = value !== '' && !isNaN(numValue) && numValue > maxMarks
     const finalValue = exceeds ? String(maxMarks) : value
@@ -104,6 +117,7 @@ export default function Marks() {
   }
 
   const handleEditRow = (studentId) => {
+    dirty.current = true
     setEditingRows(prev => ({ ...prev, [studentId]: true }))
   }
 
@@ -129,6 +143,18 @@ export default function Marks() {
     setSavingRows(prev => ({ ...prev, ...Object.fromEntries(studentIds.map(id => [id, true])) }))
     try {
       await api.post('/marks/bulk', { class: selectedClass, examType: selectedExamType, rows })
+      // Keep the cached sheet in step, so reopening this class shows the saved marks
+      const cached = sheetCache.get(sheetKey)
+      if (cached) {
+        const saved = new Set(rows.flatMap(r => Object.keys(r.marks).map(subject => `${r.studentId}|${subject}`)))
+        sheetCache.set(sheetKey, {
+          ...cached,
+          marks: [
+            ...cached.marks.filter(m => !saved.has(`${m.studentId}|${m.subject}`)),
+            ...rows.flatMap(r => Object.entries(r.marks).map(([subject, marks]) => ({ studentId: r.studentId, subject, marks }))),
+          ],
+        })
+      }
       setEditingRows(prev => ({ ...prev, ...Object.fromEntries(studentIds.map(id => [id, false])) }))
     } catch (err) {
       console.error(err)
@@ -160,7 +186,7 @@ export default function Marks() {
         <div className="grid grid-cols-3 gap-4 items-end">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Class</label>
-            <select value={selectedClass} onChange={e => { setSelectedClass(e.target.value); setLoaded(false) }}
+            <select value={selectedClass} onChange={e => chooseClass(e.target.value)}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none">
               <option value="">Select class</option>
               {classes.map(c => <option key={c} value={c}>{c}</option>)}
@@ -168,7 +194,7 @@ export default function Marks() {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Exam Type</label>
-            <select value={selectedExamType} onChange={e => { setSelectedExamType(e.target.value); setLoaded(false) }}
+            <select value={selectedExamType} onChange={e => chooseExam(e.target.value)}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none">
               <option value="">Select exam type</option>
               {examTypes.map(e => <option key={e.id} value={e.name}>{e.name}</option>)}
@@ -176,12 +202,17 @@ export default function Marks() {
           </div>
           <div>
             <button
-              onClick={handleLoad}
-              disabled={loading}
-              style={{ background: '#083e78' }}
-              className="text-white px-6 py-2 rounded-lg text-sm font-medium hover:opacity-90 transition disabled:opacity-50"
+              onClick={() => {
+                if (dirty.current && !window.confirm('Discard unsaved changes and reload?')) return
+                sheetCache.delete(sheetKey)
+                setLoadedKey('')
+                openSheet(selectedClass, selectedExamType)
+              }}
+              disabled={!sheetKey || loading}
+              style={{ background: '#e8f0fb', color: '#083e78' }}
+              className="px-6 py-2 rounded-lg text-sm font-medium hover:opacity-80 transition disabled:opacity-50"
             >
-              {loading ? 'Loading...' : 'Load'}
+              {loading ? 'Loading...' : 'Refresh'}
             </button>
           </div>
         </div>
@@ -321,13 +352,13 @@ export default function Marks() {
 
       {loaded && students.length === 0 && (
         <div className="bg-white border border-gray-200 rounded-xl p-12 text-center text-gray-400">
-          No students found in Class {selectedClass}.
+          No students found in {selectedClass}.
         </div>
       )}
 
       {!loaded && !loading && (
         <div className="bg-white border border-gray-200 rounded-xl p-12 text-center text-gray-400">
-          Select a class and exam type, then click Load.
+          Select a class and exam type to see marks.
         </div>
       )}
     </Layout>
