@@ -6,6 +6,11 @@ import { SkeletonBlock, rowBg } from '../components/Skeleton'
 
 const pctColor = (pct) => pct >= 75 ? '#00bf63' : pct >= 50 ? '#f59e0b' : '#e53e3e'
 
+// Codes a teacher can type instead of a number: AB = absent (counts as 0), ML = medical / exempted (left out of the maximum)
+const CODES = { AB: 'ABSENT', ML: 'EXEMPT' }
+const codeOf = (m) => m.status === 'ABSENT' ? 'AB' : m.status === 'EXEMPT' ? 'ML' : m.marks
+const isCode = (v) => v === 'AB' || v === 'ML'
+
 // Mark sheets already opened in this visit, keyed "class|exam": shown at once when reopened, then refreshed
 const sheetCache = new Map()
 
@@ -56,7 +61,7 @@ export default function Marks() {
     })
     data.marks.forEach(m => {
       if (!dataMap[m.studentId]) return
-      dataMap[m.studentId][m.subject] = m.marks
+      dataMap[m.studentId][m.subject] = codeOf(m)
       hasMarks[m.studentId] = true
     })
     setStudents(data.students)
@@ -94,8 +99,12 @@ export default function Marks() {
   const chooseClass = (value) => { setSelectedClass(value); openSheet(value, selectedExamType) }
   const chooseExam = (value) => { setSelectedExamType(value); openSheet(selectedClass, value) }
 
-  const handleMarkChange = (studentId, subjectName, value) => {
+  const handleMarkChange = (studentId, subjectName, typed) => {
     dirty.current = true
+    // Letters can only spell AB or ML (A, M while typing); anything else keeps the old value
+    const upper = typed.toUpperCase().trim()
+    if (/[A-Z]/.test(upper) && !['A', 'AB', 'M', 'ML'].includes(upper)) return
+    const value = /[A-Z]/.test(upper) ? upper : typed
     const numValue = parseFloat(value)
     const exceeds = value !== '' && !isNaN(numValue) && numValue > maxMarks
     const finalValue = exceeds ? String(maxMarks) : value
@@ -115,6 +124,8 @@ export default function Marks() {
     const data = marksData[studentId] || {}
     return subjects.reduce((sum, subj) => sum + (parseFloat(data[subj.name]) || 0), 0)
   }
+  // ML papers are left out of the maximum
+  const rowMax = (studentId) => subjects.filter(subj => marksData[studentId]?.[subj.name] !== 'ML').length * maxMarks
 
   const handleEditRow = (studentId) => {
     dirty.current = true
@@ -131,13 +142,18 @@ export default function Marks() {
       alert('Some marks exceed the maximum. Please fix before saving.')
       return
     }
+    const unfinished = studentIds.some(id => subjects.some(subj => ['A', 'M'].includes(marksData[id]?.[subj.name])))
+    if (unfinished) {
+      alert('Type AB (absent) or ML (medical / exempted) in full, or a number.')
+      return
+    }
 
     const rows = studentIds.map(studentId => ({
       studentId,
       marks: Object.fromEntries(subjects
         .map(subj => [subj.name, marksData[studentId]?.[subj.name]])
         .filter(([, v]) => v !== '' && v !== null && v !== undefined)
-        .map(([k, v]) => [k, parseFloat(v)])),
+        .map(([k, v]) => [k, isCode(v) ? v : parseFloat(v)])),
     }))
 
     setSavingRows(prev => ({ ...prev, ...Object.fromEntries(studentIds.map(id => [id, true])) }))
@@ -151,7 +167,9 @@ export default function Marks() {
           ...cached,
           marks: [
             ...cached.marks.filter(m => !saved.has(`${m.studentId}|${m.subject}`)),
-            ...rows.flatMap(r => Object.entries(r.marks).map(([subject, marks]) => ({ studentId: r.studentId, subject, marks }))),
+            ...rows.flatMap(r => Object.entries(r.marks).map(([subject, v]) => (
+              isCode(v) ? { studentId: r.studentId, subject, marks: 0, status: CODES[v] } : { studentId: r.studentId, subject, marks: v, status: 'PRESENT' }
+            ))),
           ],
         })
       }
@@ -173,7 +191,7 @@ export default function Marks() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 style={{ color: '#083e78' }} className="text-2xl font-bold">Marks & Results</h1>
-          <p className="text-gray-500 text-sm mt-1">Enter exam marks for students</p>
+          <p className="text-gray-500 text-sm mt-1">Enter exam marks for students. Type <b>AB</b> if absent, <b>ML</b> for medical leave / exempted.</p>
         </div>
         {currentSession && (
           <span style={{ background: '#e8f0fb', color: '#083e78' }} className="px-3 py-1.5 rounded-lg text-xs font-semibold">
@@ -287,7 +305,7 @@ export default function Marks() {
                 const editing = !!editingRows[s.id]
                 const saving = !!savingRows[s.id]
                 const total = rowTotal(s.id)
-                const maxTotal = subjects.length * maxMarks
+                const maxTotal = rowMax(s.id)
                 const pct = maxTotal > 0 ? (total / maxTotal) * 100 : 0
 
                 return (
@@ -298,12 +316,13 @@ export default function Marks() {
                     {subjects.map(subj => (
                       <td key={subj.id} className="px-4 py-3 text-center">
                         <input
-                          type="number"
-                          min="0"
-                          max={maxMarks}
+                          type="text"
+                          inputMode="decimal"
                           value={marksData[s.id]?.[subj.name] ?? ''}
                           disabled={!editing}
                           onChange={e => handleMarkChange(s.id, subj.name, e.target.value)}
+                          title="A number, AB (absent) or ML (medical / exempted)"
+                          style={isCode(marksData[s.id]?.[subj.name]) ? { background: '#fff4e5', color: '#9a4b00', fontWeight: 600 } : undefined}
                           className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm w-20 text-center focus:outline-none disabled:bg-gray-50 disabled:text-gray-400"
                           placeholder="—"
                         />

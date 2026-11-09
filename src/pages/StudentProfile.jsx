@@ -439,7 +439,9 @@ export default function StudentProfile() {
                       const m = marks.find(mk => mk.subject === subj.name && mk.examType === et.name)
                       return (
                         <td key={et.id} className="px-4 py-3 text-center text-gray-600">
-                          {m ? `${m.marks}/${m.maxMarks}` : ''}
+                          {!m ? '' : m.status === 'ABSENT' || m.status === 'EXEMPT'
+                            ? <span title={m.status === 'ABSENT' ? 'Absent (counted as 0)' : 'Medical leave / exempted (not counted)'} style={{ color: '#9a4b00', fontWeight: 600 }}>{m.status === 'ABSENT' ? 'AB' : 'ML'}</span>
+                            : `${m.marks}/${m.maxMarks}`}
                         </td>
                       )
                     })}
@@ -450,7 +452,8 @@ export default function StudentProfile() {
                   {examTypes.map(et => {
                     const etMarks = marks.filter(mk => mk.examType === et.name)
                     const total = etMarks.reduce((sum, m) => sum + m.marks, 0)
-                    const max = etMarks.reduce((sum, m) => sum + m.maxMarks, 0)
+                    // ML (exempt) papers are left out of the maximum
+                    const max = etMarks.reduce((sum, m) => sum + (m.status === 'EXEMPT' ? 0 : m.maxMarks), 0)
                     const pct = max > 0 ? ((total / max) * 100).toFixed(1) : null
                     return (
                       <td key={et.id} className="px-4 py-3 text-center font-bold whitespace-nowrap" style={{ color: '#083e78' }}>

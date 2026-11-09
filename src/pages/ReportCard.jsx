@@ -152,6 +152,27 @@ export default function ReportCard() {
                 ))}
               </div>
             )}
+            {(() => {
+              const blanks = (examGroup.notEntered || []).filter(n => selectedExams.includes(n.exam))
+              const absent = (examGroup.absences || []).filter(n => selectedExams.includes(n.exam))
+              if (!blanks.length && !absent.length) return null
+              return (
+                <div className="mt-3 space-y-2 text-xs">
+                  {blanks.length > 0 && (
+                    <div style={{ background: '#fff8e6', color: '#92400e' }} className="rounded-lg px-3 py-2 space-y-1">
+                      <p className="font-semibold">Marks not entered: these print as "—" and count as 0. Enter a number, AB or ML on the Marks page.</p>
+                      {blanks.map(n => <p key={`${n.exam}|${n.student}`}>{n.exam}: {n.student} ({n.subjects.join(', ')})</p>)}
+                    </div>
+                  )}
+                  {absent.length > 0 && (
+                    <div style={{ background: '#f1f5f9', color: '#475569' }} className="rounded-lg px-3 py-2">
+                      <p className="font-semibold mb-1">Absent (AB) / medical or exempted (ML)</p>
+                      <p>{absent.map(n => `${n.student}: ${n.subject}, ${n.exam} (${n.code})`).join(' · ')}</p>
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
           </div>
         )}
         <button

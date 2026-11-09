@@ -53,19 +53,21 @@ export default function ReportCardSheet({ row, data, examTypeParam, session, log
   })
   const totalMaxPerSubject = examGroup.reduce((sum, name) => sum + (examMaxMarksMap[name] || 0), 0)
 
-  const colTotalObtained = (name) =>
-    subjects.reduce((sum, subj) => sum + (marksBySubjectExam[subj.name]?.[name] ?? 0), 0)
-
+  // Totals come from the server: AB counts as 0, ML is left out of the maximum, a blank counts as 0
   const rows = subjects.map(subj => {
-    const values = examGroup.map(name => marksBySubjectExam[subj.name]?.[name] ?? 0)
-    const total = values.reduce((a, b) => a + b, 0)
-    return { subj, values, total, grade: gradeFor(totalMaxPerSubject > 0 ? (total / totalMaxPerSubject) * 100 : 0) }
+    const values = examGroup.map(name => marksBySubjectExam[subj.name]?.[name])
+    const t = row.subjectTotals?.[subj.name] || { total: 0, max: totalMaxPerSubject, grade: gradeFor(0) }
+    return { subj, values, ...t }
   })
-  const grandTotalObtained = rows.reduce((sum, r) => sum + r.total, 0)
-  const grandTotalMax = subjects.length * totalMaxPerSubject
-  const grandPct = grandTotalMax > 0 ? (grandTotalObtained / grandTotalMax) * 100 : 0
-  const passed = grandPct >= 33
+  const grandTotalObtained = row.total
+  const grandTotalMax = row.max
+  const grandPct = row.pct
+  const passed = row.passed
   const isSingleExam = examGroup.length === 1
+  const usesCodes = rows.some(r => r.values.some(v => v === 'AB' || v === 'ML'))
+  const cell = (v) => v === 'AB' || v === 'ML'
+    ? <span style={{ fontWeight: 700, color: '#9a4b00' }}>{v}</span>
+    : v === undefined ? <span style={{ color: '#9aa3ae' }}>—</span> : v
 
   const details = [
     ['Student Name', student.name],
@@ -165,8 +167,12 @@ export default function ReportCardSheet({ row, data, examTypeParam, session, log
           {rows.map((r, i) => (
             <tr key={r.subj.id} style={{ background: i % 2 ? theme.alt : '#fff', borderBottom: '1px solid #e3e8ee' }}>
               <td style={{ ...td, textAlign: 'left', padding: '5px 12px', fontWeight: 500 }}>{r.subj.name}</td>
-              {r.values.map((v, idx) => <td key={idx} style={td}>{v}</td>)}
-              {!isSingleExam && <td style={{ ...td, fontWeight: 600 }}>{r.total}</td>}
+              {r.values.map((v, idx) => <td key={idx} style={td}>{cell(v)}</td>)}
+              {!isSingleExam && (
+                <td style={{ ...td, fontWeight: 600 }}>
+                  {r.max === 0 ? cell('ML') : r.max < totalMaxPerSubject ? `${r.total} / ${r.max}` : r.total}
+                </td>
+              )}
               <td style={{ ...td, fontWeight: 700, color: theme.primary }}>{r.grade}</td>
             </tr>
           ))}
@@ -174,7 +180,7 @@ export default function ReportCardSheet({ row, data, examTypeParam, session, log
             <td style={{ ...td, textAlign: 'left', padding: '7px 12px' }}>Grand Total</td>
             {examGroup.map(name => (
               <td key={name} style={td}>
-                {colTotalObtained(name)}{isSingleExam ? ` / ${grandTotalMax}` : ''}
+                {row.examTotals?.[name]?.total ?? 0}{isSingleExam ? ` / ${grandTotalMax}` : ''}
               </td>
             ))}
             {!isSingleExam && <td style={td}>{grandTotalObtained} / {grandTotalMax}</td>}
@@ -182,6 +188,11 @@ export default function ReportCardSheet({ row, data, examTypeParam, session, log
           </tr>
         </tbody>
       </table>
+    )}
+    {usesCodes && (
+      <div style={{ fontSize: 11, color: '#5b6675', marginTop: -4 }}>
+        <b>AB</b> = Absent (counted as 0) · <b>ML</b> = Medical leave / exempted (not counted in the maximum)
+      </div>
     )}
 
     <section style={{ display: 'grid', gridTemplateColumns: `repeat(${tiles.length}, minmax(0, 1fr))`, gap: 10 }}>
