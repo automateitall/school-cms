@@ -75,6 +75,21 @@ export default function Users() {
     }
   }
 
+  // Only an account with no records (receipts, attendance, ratings…) can be deleted; the server explains otherwise
+  const deleteUser = async (u) => {
+    if (!window.confirm(`Delete ${u.name}'s account (${u.email})? This cannot be undone.`)) return
+    setBusyId(u.id)
+    setError('')
+    try {
+      await api.delete(`/users/${u.id}`)
+      setUsers(prev => prev.filter(x => x.id !== u.id))
+    } catch (err) {
+      setError(err.response?.data?.message || 'Could not delete the account')
+    } finally {
+      setBusyId(null)
+    }
+  }
+
   const resetPassword = async (u) => {
     if (!window.confirm(`Reset the password for ${u.name}? They will have to choose a new one at next sign-in.`)) return
     const password = tempPassword()
@@ -217,6 +232,12 @@ export default function Users() {
                         className="text-xs font-medium px-3 py-1.5 rounded border disabled:opacity-50"
                         style={u.active ? { borderColor: '#fca5a5', color: '#b42318' } : { borderColor: '#9ae6c3', color: '#13703f' }}>
                         {u.active ? 'Deactivate' : 'Reactivate'}
+                      </button>
+                    )}
+                    {!isMe && (
+                      <button onClick={() => deleteUser(u)} disabled={busy}
+                        className="text-xs font-medium px-3 py-1.5 rounded border border-gray-300 text-gray-600 hover:bg-red-50 hover:text-red-700 disabled:opacity-50">
+                        Delete
                       </button>
                     )}
                   </td>
