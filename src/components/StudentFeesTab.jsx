@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import api from '../lib/api'
 import { useAuth } from '../context/AuthContext'
-import { MONTHS, cardTotals, currentPeriod, dueState, formatDate, modeLabel, periodLabel, rupees, sessionPeriods } from '../lib/fees'
+import { MONTHS, cardTotals, currentPeriod, dueState, formatDate, modeLabel, periodLabel, rupees, runText, sessionPeriods } from '../lib/fees'
 
 const NAVY = '#083e78'
 const card = 'bg-white border border-gray-200 rounded-xl'
@@ -116,6 +116,14 @@ export default function StudentFeesTab({ studentId }) {
             </div>
           ))}
         </section>
+        {ledger.pupilFees?.length > 0 && (
+          <section aria-label="Pupil fees" className={`${card} p-4`}>
+            <h3 className="text-sm font-semibold mb-1.5" style={{ color: NAVY }}>Pupil fees</h3>
+            {ledger.pupilFees.map(r => (
+              <p key={r.id} className="py-2 border-t border-gray-100 text-sm"><strong>{r.feeHead.name}</strong> · {runText(r)}{r.note ? ` · ${r.note}` : ''}</p>
+            ))}
+          </section>
+        )}
         <section aria-label="Concessions" className={`${card} p-4`}>
           <h3 className="text-sm font-semibold mb-1.5" style={{ color: NAVY }}>Concessions</h3>
           {ledger.discounts.length === 0 && <p className="text-sm text-gray-400">None.</p>}

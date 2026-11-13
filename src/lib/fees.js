@@ -111,3 +111,23 @@ export const cardTotals = (ledger) => {
     charged,
   }
 }
+
+// One run of a pupil's own amount for a per-pupil fee: "₹600 a month, Apr 2026 – Aug 2026" / "… from Sep 2026"
+export const runText = (run) => `${rupees(run.amount)} a month, ${run.toPeriod ? `${periodLabel(run.fromPeriod)} – ${periodLabel(run.toPeriod)}` : `from ${periodLabel(run.fromPeriod)}`}`
+
+// What a save did to the pupil's months, in words
+export const pupilChargeText = (charge) => {
+  if (!charge) return ''
+  const parts = []
+  if (charge.created) parts.push(`${charge.created} ${charge.created === 1 ? 'month' : 'months'} charged`)
+  if (charge.updated) parts.push(`${charge.updated} unpaid ${charge.updated === 1 ? 'month' : 'months'} updated`)
+  if (charge.removed) parts.push(`${charge.removed} unpaid ${charge.removed === 1 ? 'month' : 'months'} removed`)
+  return parts.length ? `${parts.join(', ')}. Paid months are never changed.` : 'No months needed changing.'
+}
+
+// The month to start from by default: this month, kept inside the session
+export const defaultMonth = (session) => {
+  const periods = sessionPeriods(session)
+  const now = currentPeriod()
+  return periods.includes(now) ? now : now < periods[0] ? periods[0] : periods[periods.length - 1]
+}

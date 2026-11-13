@@ -4,8 +4,9 @@ import Layout from '../components/layout/Layout'
 import api from '../lib/api'
 import { useAuth } from '../context/AuthContext'
 import {
-  PAYMENT_MODES, cardTotals, currentPeriod, dueBadge, dueState, formatDate, modeLabel, periodLabel, rupees, sessionPeriods, todayISO,
+  PAYMENT_MODES, cardTotals, currentPeriod, dueBadge, dueState, formatDate, modeLabel, periodLabel, pupilChargeText, rupees, runText, sessionPeriods, todayISO,
 } from '../lib/fees'
+import { PupilFeeForm } from '../components/fees/PupilFees'
 
 const NAVY = '#083e78'
 const input = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none'
@@ -151,7 +152,8 @@ export default function CollectFees() {
   const thisPeriod = periods.includes(currentPeriod()) ? currentPeriod() : periods[0]
   const totals = ledger ? cardTotals(ledger) : null
   const sum = (list) => list.reduce((x, d) => x + d.net, 0)
-  const oneOffFirst = [...heads].sort((a, b) => (a.frequency === 'ONE_TIME' ? 0 : 1) - (b.frequency === 'ONE_TIME' ? 0 : 1))
+  const perPupilHeads = heads.filter(h => h.perPupil)
+  const oneOffFirst = heads.filter(h => !h.perPupil).sort((a, b) => (a.frequency === 'ONE_TIME' ? 0 : 1) - (b.frequency === 'ONE_TIME' ? 0 : 1))
   const concessionText = (sd) => sd.discountType.kind === 'PERCENT' ? `${sd.discountType.value}% off` : `${rupees(sd.discountType.value)} off each month`
 
   const monthRow = (d) => {
@@ -264,13 +266,28 @@ export default function CollectFees() {
                     {isAdmin && types.length > 0 && (
                       <button onClick={() => setForm({ kind: 'concession', discountTypeId: types[0].id, fromPeriod: thisPeriod, note: '' })} className={outlineBtn} style={{ color: NAVY, borderColor: '#b8c7da' }}>+ Give concession</button>
                     )}
-                    {canCollect && heads.length > 0 && (
+                    {canCollect && perPupilHeads.length > 0 && (
+                      <button onClick={() => setForm({ kind: 'pupilFee', initial: { mode: 'set', feeHeadId: perPupilHeads[0].id, amount: '', fromPeriod: thisPeriod, note: '' } })} className={outlineBtn} style={{ color: NAVY, borderColor: '#b8c7da' }}>+ {perPupilHeads.length === 1 ? perPupilHeads[0].name : 'Pupil fee'}</button>
+                    )}
+                    {canCollect && oneOffFirst.length > 0 && (
                       <button onClick={() => setForm({ kind: 'charge', feeHeadId: oneOffFirst[0].id, amount: '', period: thisPeriod, note: '' })} className={outlineBtn} style={{ color: NAVY, borderColor: '#b8c7da' }}>+ One-time charge</button>
                     )}
                   </div>
                 </div>
 
-                {form && (
+                {form?.kind === 'pupilFee' && (
+                  <div className="mx-4 mb-4">
+                    <PupilFeeForm key={JSON.stringify(form.initial)} studentId={studentId} session={ledger.session} heads={perPupilHeads} initial={form.initial}
+                      onCancel={() => setForm(null)}
+                      onDone={async (res, f) => {
+                        setForm(null)
+                        await loadLedger(studentId)
+                        const name = perPupilHeads.find(h => h.id === f.feeHeadId)?.name
+                        setMsg({ text: `${name}: ${f.mode === 'stop' ? `stopped from ${periodLabel(f.fromPeriod)}` : `${rupees(f.amount)} a month from ${periodLabel(f.fromPeriod)}`}. ${pupilChargeText(res.charge)}` })
+                      }} />
+                  </div>
+                )}
+                {form && form.kind !== 'pupilFee' && (
                   <form onSubmit={submitForm} className="mx-4 mb-4 p-4 rounded-lg grid gap-3 items-end" style={{ background: '#f7faff', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))' }}>
                     {form.kind === 'charge' ? (
                       <>
@@ -340,6 +357,33 @@ export default function CollectFees() {
               </section>
 
               <div className="grid gap-5" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))' }}>
+                {(ledger.pupilFees?.length > 0 || perPupilHeads.length > 0) && (
+                  <section aria-label="Pupil fees" className={`${card} p-4 space-y-2.5`}>
+                    <h2 className="font-semibold text-sm" style={{ color: NAVY }}>{perPupilHeads.length === 1 ? perPupilHeads[0].name : 'Pupil fees'}</h2>
+                    {!ledger.pupilFees?.length && <p className="text-sm text-gray-400">Not taking.</p>}
+                    {Object.values((ledger.pupilFees || []).reduce((g, r) => { (g[r.feeHeadId] ||= { head: r.feeHead, runs: [] }).runs.push(r); return g }, {})).map(({ head, runs }) => {
+                      const last = runs[runs.length - 1]
+                      const taking = !last.toPeriod
+                      return (
+                        <div key={head.id} className="rounded-lg px-3 py-2.5" style={{ background: '#f7faff' }}>
+                          <p className="font-semibold text-sm">{head.name}{!taking && <span className="font-normal text-gray-500"> · stopped after {periodLabel(last.toPeriod)}</span>}</p>
+                          {runs.map(r => <p key={r.id} className="text-xs text-gray-600">{runText(r)}</p>)}
+                          {last.note && <p className="text-xs text-gray-500">{last.note}</p>}
+                          {canCollect && perPupilHeads.some(h => h.id === head.id) && (
+                            <div className="flex gap-3 mt-1.5">
+                              <button onClick={() => setForm({ kind: 'pupilFee', initial: { mode: 'set', feeHeadId: head.id, lockHead: true, amount: taking ? String(last.amount) : '', fromPeriod: thisPeriod, note: '' } })}
+                                className="text-xs font-semibold" style={{ color: NAVY }}>{taking ? 'Change amount' : 'Start again'}</button>
+                              {taking && (
+                                <button onClick={() => setForm({ kind: 'pupilFee', initial: { mode: 'stop', feeHeadId: head.id, lockHead: true, fromPeriod: thisPeriod } })}
+                                  className="text-xs font-medium text-red-700">Stop</button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </section>
+                )}
                 <section aria-label="Concessions" className={`${card} p-4 space-y-2.5`}>
                   <h2 className="font-semibold text-sm" style={{ color: NAVY }}>Concessions</h2>
                   {ledger.discounts.length === 0 && <p className="text-sm text-gray-400">None.</p>}

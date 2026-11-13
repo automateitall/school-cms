@@ -4,6 +4,7 @@ import api from '../lib/api'
 import { useAuth } from '../context/AuthContext'
 import { getCachedSettings } from '../lib/cache'
 import { MONTHS, periodLabel, rupees, sessionPeriods } from '../lib/fees'
+import PupilFees from '../components/fees/PupilFees'
 
 const NAVY = '#083e78'
 const input = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none'
@@ -25,6 +26,7 @@ const chargeSummary = (charge) => {
   const parts = []
   if (charge.created) parts.push(`${charge.created} ${charge.created === 1 ? 'month' : 'months'} charged`)
   if (charge.updated) parts.push(`${charge.updated} unpaid ${charge.updated === 1 ? 'month' : 'months'} updated`)
+  if (charge.removed) parts.push(`${charge.removed} unpaid ${charge.removed === 1 ? 'month' : 'months'} removed`)
   return `${charge.students} ${charge.students === 1 ? 'pupil' : 'pupils'} checked: ${parts.length ? parts.join(', ') : 'nothing needed changing'}. Paid months are never changed.`
 }
 
@@ -51,7 +53,7 @@ function Tick({ ok }) {
 
 // ---------------- Settings panel for one fee ----------------
 
-const emptyFee = { name: '', frequency: 'MONTHLY', dueDay: 10, dueMonth: 4, finePerDay: 0, fineCap: '', active: true }
+const emptyFee = { name: '', frequency: 'MONTHLY', dueDay: 10, dueMonth: 4, finePerDay: 0, fineCap: '', active: true, perPupil: false }
 
 function FeeSettings({ fee, isAdmin, onClose, onSaved }) {
   const [form, setForm] = useState({ ...emptyFee, ...fee, fineCap: fee.fineCap ?? '' })
@@ -67,6 +69,7 @@ function FeeSettings({ fee, isAdmin, onClose, onSaved }) {
     const body = {
       name: next.name, frequency: next.frequency, dueDay: Number(next.dueDay), dueMonth: Number(next.dueMonth),
       finePerDay: Number(next.finePerDay || 0), fineCap: next.fineCap === '' ? null : Number(next.fineCap), active: next.active,
+      perPupil: next.frequency === 'MONTHLY' && Boolean(next.perPupil),
     }
     try {
       const res = isNew ? await api.post('/fees/heads', body) : await api.put(`/fees/heads/${fee.id}`, body)
@@ -105,6 +108,12 @@ function FeeSettings({ fee, isAdmin, onClose, onSaved }) {
           ))}
         </div>
       </fieldset>
+      {form.frequency === 'MONTHLY' && (
+        <label className="flex items-start gap-2 text-sm text-gray-700">
+          <input type="checkbox" className="mt-0.5" disabled={!isAdmin} checked={Boolean(form.perPupil)} onChange={e => set('perPupil', e.target.checked)} />
+          <span>Different amount for each pupil<span className="block text-xs text-gray-500">For a fee like Conveyance: only the pupils you add pay it, each their own amount.</span></span>
+        </label>
+      )}
       {form.frequency !== 'ONE_TIME' && (
         <div className="grid grid-cols-2 gap-3">
           <div>
@@ -131,7 +140,9 @@ function FeeSettings({ fee, isAdmin, onClose, onSaved }) {
           <input id="f-cap" type="number" min="0" className={input} disabled={!isAdmin} value={form.fineCap} onChange={e => set('fineCap', e.target.value)} placeholder="No limit" />
         </div>
       </div>
-      <p className="rounded-lg px-3 py-2.5 text-xs leading-relaxed text-slate-700" style={{ background: '#f0f4fa' }}>{example}</p>
+      <p className="rounded-lg px-3 py-2.5 text-xs leading-relaxed text-slate-700" style={{ background: '#f0f4fa' }}>
+        {form.frequency === 'MONTHLY' && form.perPupil && "Add pupils and their amounts from the Pupil fees tab or a pupil's Fee Card. "}{example}
+      </p>
       {error && <p className="text-sm text-red-600">{error}</p>}
       {isAdmin && (
         <div className="flex gap-2">
@@ -151,8 +162,8 @@ function FeeSettings({ fee, isAdmin, onClose, onSaved }) {
 
 // ---------------- The chart ----------------
 
-function Chart({ data, isAdmin, onReload, setMsg }) {
-  const { session, classes, heads, amounts, current } = data
+function Chart({ data, isAdmin, onReload, setMsg, onPupilFees }) {
+  const { session, classes, heads, amounts, current, perPupilCounts = {} } = data
   const [draft, setDraft] = useState({}) // "class|headId" -> typed text, only cells changed
   const [panel, setPanel] = useState(null) // a fee, or {} for a new one
   const [saving, setSaving] = useState(false)
@@ -217,7 +228,12 @@ function Chart({ data, isAdmin, onReload, setMsg }) {
                       <span className="block text-xs font-normal text-gray-500">{howOften(h)}</span>
                     </button>
                   </th>
-                  {classes.map(c => {
+                  {h.perPupil ? (
+                    <td colSpan={classes.length} className="px-3 py-2.5 text-sm text-gray-600">
+                      Each pupil's own amount · {perPupilCounts[h.id] || 0} {perPupilCounts[h.id] === 1 ? 'pupil' : 'pupils'}
+                      <button onClick={onPupilFees} className="ml-3 text-xs font-semibold underline" style={{ color: NAVY }}>See pupils</button>
+                    </td>
+                  ) : classes.map(c => {
                     const v = value(c, h.id)
                     const empty = v === ''
                     const warn = empty && h.active && classes.some(x => saved(x, h.id) !== '')
@@ -387,6 +403,7 @@ function Concessions({ heads, isAdmin }) {
 export default function FeeChart() {
   const { user } = useAuth()
   const isAdmin = user?.role === 'SUPER_ADMIN'
+  const canCollect = ['SUPER_ADMIN', 'ACCOUNTANT'].includes(user?.role)
   const [tab, setTab] = useState('chart')
   const [currentSession, setCurrentSession] = useState('')
   const [session, setSession] = useState('')
@@ -503,7 +520,7 @@ export default function FeeChart() {
           )}
 
           <div className="flex gap-1 border-b border-gray-200">
-            {[['chart', 'Fee Chart'], ['concessions', 'Concessions']].map(([id, t]) => (
+            {[['chart', 'Fee Chart'], ['pupils', 'Pupil fees'], ['concessions', 'Concessions']].map(([id, t]) => (
               <button key={id} onClick={() => setTab(id)} aria-current={tab === id ? 'page' : undefined}
                 style={{ color: tab === id ? NAVY : '#64748b', borderColor: tab === id ? NAVY : 'transparent' }}
                 className="px-4 py-2.5 text-sm font-semibold border-b-2 -mb-px">{t}</button>
@@ -511,7 +528,8 @@ export default function FeeChart() {
           </div>
 
           <Message msg={msg} />
-          {tab === 'chart' && <Chart key={session} data={data} isAdmin={isAdmin} onReload={refresh} setMsg={setMsg} />}
+          {tab === 'chart' && <Chart key={session} data={data} isAdmin={isAdmin} onReload={refresh} setMsg={setMsg} onPupilFees={() => setTab('pupils')} />}
+          {tab === 'pupils' && <PupilFees key={session} session={session} canEdit={canCollect} onChanged={refresh} />}
           {tab === 'concessions' && <Concessions heads={data.heads} isAdmin={isAdmin} />}
         </div>
       )}
