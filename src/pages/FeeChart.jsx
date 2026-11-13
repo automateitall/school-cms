@@ -480,12 +480,18 @@ export default function FeeChart() {
             <label className="flex items-center gap-2 ml-auto text-gray-600">
               <span title="Months before this collect no late fine. Pupils already in school then pay the whole session; pupils added later pay from the month they join.">Fees in the CMS from</span>
               <select value={data.startMonth || ''} disabled={!isAdmin} onChange={e => setStart(e.target.value)}
-                className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm bg-white">
-                <option value="">Start of session</option>
+                className="border rounded-lg px-2 py-1.5 text-sm bg-white" style={{ borderColor: data.startMonth ? '#d1d5db' : '#f59e0b' }}>
+                <option value="">Not set</option>
                 {sessionPeriods(session).map(p => <option key={p} value={p}>{periodLabel(p)}</option>)}
               </select>
             </label>
           </section>
+
+          {data.current && !data.startMonth && (
+            <div className="rounded-xl px-5 py-3 text-sm" style={{ background: '#fff7e6', border: '1px solid #fcd34d', color: '#7c4a03' }}>
+              <b>Set “Fees in the CMS from”.</b> Until it is set, pupils added to the CMS during {session} are charged only from the month they were added, not for earlier months of the session.
+            </div>
+          )}
 
           {isAdmin && chartEmpty && (
             <div className={`${card} px-5 py-3 flex flex-wrap items-center justify-between gap-3 text-sm`}>
