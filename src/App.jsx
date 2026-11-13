@@ -22,10 +22,11 @@ import YearEnd from './pages/YearEnd'
 import Users from './pages/Users'
 import Account from './pages/Account'
 import { PAGE_ROLES } from './lib/roles'
-import FeeSetup from './pages/FeeSetup'
+import FeeChart from './pages/FeeChart'
 import CollectFees from './pages/CollectFees'
 import FeeReports from './pages/FeeReports'
 import PrintReceipt from './pages/PrintReceipt'
+import PrintFeeStatement from './pages/PrintFeeStatement'
 
 function AppRoutes() {
   const { token } = useAuth()
@@ -50,9 +51,10 @@ function AppRoutes() {
         <Route element={<ProtectedRoute roles={PAGE_ROLES['/fees/collect']} />}>
           <Route path="/fees/collect" element={<CollectFees />} />
           <Route path="/print/receipt/:id" element={<PrintReceipt />} />
+          <Route path="/print/fee-statement/:studentId" element={<PrintFeeStatement />} />
         </Route>
         <Route element={<ProtectedRoute roles={PAGE_ROLES['/fees/setup']} />}>
-          <Route path="/fees/setup" element={<FeeSetup />} />
+          <Route path="/fees/setup" element={<FeeChart />} />
           <Route path="/fees/reports" element={<FeeReports />} />
         </Route>
         <Route element={<ProtectedRoute roles={PAGE_ROLES['/marks']} />}>

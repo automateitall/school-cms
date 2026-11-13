@@ -77,3 +77,37 @@ export const STATUS_STYLE = {
   PARTIAL: { label: 'Part paid', bg: '#fff8e6', color: '#92400e' },
   UNPAID: { label: 'Unpaid', bg: '#ffeaea', color: '#b42318' },
 }
+
+// ---- The Fee Card: shared by Collect Fees and the pupil's profile ----
+
+// A due's place on the card: paid, late (past its pay-by date), due (this month or earlier, not yet late) or later
+export const dueState = (d, today = todayISO()) => {
+  if (d.balance === 0) return 'paid'
+  const payBy = new Date(d.dueDate).toISOString().slice(0, 10)
+  if (payBy < today) return 'late'
+  if (d.period <= currentPeriod()) return 'due'
+  return 'later'
+}
+
+// Words and colours for a due's status on the card
+export const dueBadge = (d) => {
+  const state = dueState(d)
+  if (state === 'paid') return { text: 'Paid', bg: '#dcfce7', color: '#166534' }
+  if (state === 'late') return { text: d.paid ? `${rupees(d.balance)} left · late` : 'Late', bg: '#fee4e2', color: '#9f1c13' }
+  if (state === 'due') return { text: `Pay by ${formatDate(d.dueDate).slice(0, 6)}`, bg: '#fef3c7', color: '#854d0e' }
+  return { text: 'Later', bg: '#f1f5f9', color: '#475569' }
+}
+
+// The three totals at the top of a Fee Card
+export const cardTotals = (ledger) => {
+  const t = ledger.totals
+  const charged = t.charged - t.discount
+  return {
+    nowDue: t.overdue + t.fine, // late fees and their fines
+    lateMonths: new Set(ledger.dues.filter(d => dueState(d) === 'late').map(d => d.period)).size,
+    fine: t.fine,
+    thisMonth: ledger.dues.filter(d => dueState(d) === 'due').reduce((s, d) => s + d.balance, 0),
+    paid: t.paidSession ?? t.paid,
+    charged,
+  }
+}

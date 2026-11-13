@@ -26,7 +26,7 @@ const categories = [
     links: [
       { to: '/fees/collect', label: 'Collect Fees', icon: '💰' },
       { to: '/fees/reports', label: 'Fee Reports', icon: '📈' },
-      { to: '/fees/setup', label: 'Fee Setup', icon: '🧾' },
+      { to: '/fees/setup', label: 'Fee Chart', icon: '🧾' },
     ],
   },
   {

@@ -5,6 +5,9 @@ import api from '../lib/api'
 import StudentFormModal from '../components/StudentFormModal'
 import { SkeletonBlock, rowBg } from '../components/Skeleton'
 import { getCachedClasses } from '../lib/cache'
+import { useAuth } from '../context/AuthContext'
+import { canAccess } from '../lib/roles'
+import { rupees } from '../lib/fees'
 
 const COLUMNS = ['Name', 'Roll No', 'Class', 'Section', 'School', 'Status', 'Parent', 'Phone', '']
 
@@ -42,6 +45,16 @@ export default function Students() {
   const [deleting, setDeleting] = useState(false)
   const [studentSummaries, setStudentSummaries] = useState({})
   const navigate = useNavigate()
+  // Fees late: only for the roles that handle fees (never teachers)
+  const { user } = useAuth()
+  const seesFees = canAccess(user?.role, '/fees/collect')
+  const [late, setLate] = useState({})
+  const [lateOnly, setLateOnly] = useState(false)
+  useEffect(() => {
+    if (!seesFees) return
+    api.get('/fees/late').then(res => setLate(res.data.students || {})).catch(() => {})
+  }, [seesFees])
+  const lateAmount = (id) => late[id] ? late[id].balance + late[id].fine : 0
 
   const fetchStudents = async (all = showAll) => {
     setLoading(true)
@@ -123,6 +136,7 @@ export default function Students() {
 
   const filteredStudents = students
     .filter(s => !selectedClass || s.class === selectedClass)
+    .filter(s => !lateOnly || lateAmount(s.id) > 0)
     .filter(s => {
       if (!searchTerm.trim()) return true
       const term = searchTerm.toLowerCase()
@@ -179,6 +193,12 @@ export default function Students() {
           <input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} className="w-4 h-4" />
           Show all (incl. inactive)
         </label>
+        {seesFees && (
+          <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
+            <input type="checkbox" checked={lateOnly} onChange={(e) => setLateOnly(e.target.checked)} className="w-4 h-4" />
+            Fees late ({Object.keys(late).length})
+          </label>
+        )}
       </div>
 
       {showModal && (
@@ -270,7 +290,17 @@ export default function Students() {
               {filteredStudents.map((s, i) => (
                 <tr key={s.id} style={{ background: i % 2 === 0 ? '#fff' : '#fafafa' }}
                   className="border-t border-gray-100">
-                  <td className="px-4 py-3 font-medium text-gray-800">{s.name}</td>
+                  <td className="px-4 py-3 font-medium text-gray-800">
+                    {s.name}
+                    {seesFees && lateAmount(s.id) > 0 && (
+                      <button onClick={() => navigate(`/fees/collect?student=${s.id}`)}
+                        title={`${late[s.id].months.length} ${late[s.id].months.length === 1 ? 'month' : 'months'} late. Open their Fee Card`}
+                        className="ml-2 px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap align-middle"
+                        style={{ background: '#fee4e2', color: '#9f1c13' }}>
+                        {rupees(lateAmount(s.id))} late
+                      </button>
+                    )}
+                  </td>
                   <td className="px-4 py-3 text-gray-600">{s.rollNo}</td>
                   <td className="px-4 py-3 text-gray-600">{s.class}</td>
                   <td className="px-4 py-3 text-gray-600">{s.section || '—'}</td>
